@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -57,7 +58,11 @@ class SettingsRepository(context: Context) {
             val effectiveActive = if (parsedActive.isEmpty() && (activeRaw == null || activeRaw.isBlank())) {
                 ProviderCatalog.defaultActiveIds
             } else {
-                parsedActive
+                // 配置迁移：剔除历史遗留、对免费用户必然失败的供应商，
+                // 避免升级后首页永远挂着几张红卡（用户会以为程序坏了）。
+                //   ipdatafree  -> 无 key 一律 401
+                //   getipintel  -> 强制要邮箱，且按出口 IP 封禁（-5）
+                migrateActiveIds(parsedActive, prefs[CONFIG_VERSION] ?: 0)
             }
             LookupSettings(
                 activeIds = effectiveActive,
@@ -79,9 +84,19 @@ class SettingsRepository(context: Context) {
         prefs[TIMEOUT] = settings.timeoutMs
         prefs[TTL] = settings.cacheTtlMs
         prefs[DENOMINATOR] = settings.useEnabledAsDenominator
+        prefs[CONFIG_VERSION] = CURRENT_CONFIG_VERSION
         prefs[AUTO_LOOKUP] = settings.autoLookup
         prefs[SHOW_FLAGS] = settings.showFlags
         prefs[NOTIFICATIONS] = settings.notifications
+    }
+
+    /**
+     * 按配置版本做一次性迁移，迁移后把版本号写回，避免反复调整用户的选择。
+     */
+    private fun migrateActiveIds(active: Set<String>, storedVersion: Int): Set<String> {
+        if (storedVersion >= CURRENT_CONFIG_VERSION) return active
+        val deprecated = setOf("ipdatafree", "getipintel")
+        return active - deprecated
     }
 
     private fun encodeMap(map: Map<String, String>): String = buildString {
@@ -120,5 +135,12 @@ class SettingsRepository(context: Context) {
         private val AUTO_LOOKUP = booleanPreferencesKey("auto_lookup")
         private val SHOW_FLAGS = booleanPreferencesKey("show_flags")
         private val NOTIFICATIONS = booleanPreferencesKey("notifications")
+        private val CONFIG_VERSION = intPreferencesKey("config_version")
+
+        /**
+         * 配置迁移版本号。改动默认供应商集合时 +1，老用户升级会自动剔除失效项。
+         * 1: 移除 ipdatafree(401) / getipintel(需邮箱且按出口 IP 封禁)
+         */
+        private const val CURRENT_CONFIG_VERSION = 1
     }
 }

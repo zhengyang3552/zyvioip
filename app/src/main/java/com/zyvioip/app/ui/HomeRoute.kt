@@ -23,7 +23,10 @@ fun HomeRoute(modifier: Modifier = Modifier) {
     val providerStates by viewModel.repository.providerStates.collectAsState()
     val localIp by viewModel.repository.localIp.collectAsState()
     val loading by viewModel.repository.loading.collectAsState()
-    val error by viewModel.repository.error.collectAsState()
+    val repoError by viewModel.repository.error.collectAsState()
+    val startupError by viewModel.startupError.collectAsState()
+    // 启动异常优先展示，普通查询错误其次
+    val error = startupError ?: repoError
     val settings by viewModel.settings.collectAsState()
     val configs by viewModel.configs.collectAsState()
     var settingsOpen by remember { mutableStateOf(false) }

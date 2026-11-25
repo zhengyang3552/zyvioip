@@ -205,4 +205,15 @@ class ProviderParseTest {
         assertFalse(outcome.flags.contains(ProviderFlag.DATACENTER))
         assertEquals(true, outcome.isResidential)
     }
+
+    @Test fun latencyIsElapsedMillisNotNanoTimestamp() {
+        // 回归：曾经把 System.nanoTime() 的绝对值直接当毫秒，
+        // 卡片上显示出 692767498860051 ms 这种数字。
+        val provider = com.zyvioip.app.provider.IpApiComProvider()
+        val body = """{"status":"success","country":"United States","query":"1.2.3.4"}"""
+        val outcome = provider.parseForTest(body, "1.2.3.4")
+        // parseForTest 不经过网络层，latency 应为 0；
+        // 关键是它绝不能是一个纳秒级的天文数字。
+        assertTrue("latency 不应是纳秒时间戳", outcome.latencyMs < 100_000)
+    }
 }

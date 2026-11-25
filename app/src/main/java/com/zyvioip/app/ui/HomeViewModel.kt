@@ -19,12 +19,21 @@ class HomeViewModel(
 
     val settings: StateFlow<HomeSettings> = repository.homeSettings
 
+    private val _startupError = MutableStateFlow<String?>(null)
+    val startupError: StateFlow<String?> = _startupError.asStateFlow()
+
     private val _configs = MutableStateFlow(emptyMap<String, ProviderConfig>())
     val configs: StateFlow<Map<String, ProviderConfig>> = _configs.asStateFlow()
 
     init {
         viewModelScope.launch {
             runCatching { repository.initialize() }
+                .onFailure { e ->
+                    // 启动失败必须让用户看到原因，不能静默
+                    if (e !is kotlinx.coroutines.CancellationException) {
+                        _startupError.value = "初始化失败：${e.message ?: e.javaClass.simpleName}"
+                    }
+                }
             refreshConfigs()
         }
     }

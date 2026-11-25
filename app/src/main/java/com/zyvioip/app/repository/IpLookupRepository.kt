@@ -16,6 +16,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlin.math.roundToInt
 
 /** Coordinates local IP discovery, concurrent provider queries, TTL caching and aggregation. */
@@ -85,8 +87,17 @@ class IpLookupRepository(
         val active = settings.activeIds.mapNotNull(ProviderCatalog::byId)
         _providerStates.value = active.map { ProviderOutcome(it.id, ProviderStatus.LOADING) }
         try {
+            // 限流：不要一次把 5+ 个请求全堆到移动网络上。
+            // 冷启动时 detect() 刚并发探测完 4 个 IP 端点，紧接着 5 个供应商再全部并发，
+            // 会出现 9 个并发请求同时抢 DNS/TLS —— 表现就是“全部超时失败”，
+            // 而用户稍后手动点查询（网络已预热）就正常。这里最多同时跑 3 个。
+            val semaphore = Semaphore(MAX_CONCURRENT_PROVIDERS)
             val results = coroutineScope {
-                active.map { spec -> async { query(spec.id, cleanIp, bypassCache = false) } }.awaitAll()
+                active.map { spec ->
+                    async {
+                        semaphore.withPermit { query(spec.id, cleanIp, bypassCache = false) }
+                    }
+                }.awaitAll()
             }
             if (generation != searchGeneration) return // 已经有更新的查询了，丢弃本次结果
             _providerStates.value = results
@@ -225,8 +236,17 @@ class IpLookupRepository(
                 ))
             }
             outcome
-        } catch (_: Exception) {
-            ProviderOutcome(providerId, ProviderStatus.ERROR, error = "查询失败，请稍后重试")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // 协程取消必须原样抛出，否则会把“取消”当成失败
+            throw e
+        } catch (e: Exception) {
+            // 不要吞掉具体原因：DNS 解析失败、证书错误、连接被重置……
+            // 只有把真实异常显示出来，用户才能判断是网络问题还是服务问题。
+            ProviderOutcome(
+                providerId = providerId,
+                status = ProviderStatus.ERROR,
+                error = "${e.javaClass.simpleName}: ${e.message ?: "未知错误"}",
+            )
         }
     }
 
@@ -305,5 +325,7 @@ class IpLookupRepository(
 
     private companion object {
         const val LOCAL_CACHE_KEY = "device"
+        /** 同时进行的供应商请求上限，避免移动网络下并发过高集体超时。 */
+        const val MAX_CONCURRENT_PROVIDERS = 3
     }
 }

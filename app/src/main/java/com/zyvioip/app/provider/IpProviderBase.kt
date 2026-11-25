@@ -26,12 +26,15 @@ abstract class IpProvider(
     protected val config: ProviderConfig = config ?: ProviderConfig(spec.id)
     protected val json: Json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    private val http: OkHttpClient = client ?: OkHttpClient.Builder()
-        .connectTimeout(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .readTimeout(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .writeTimeout(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .callTimeout(DEFAULT_TIMEOUT_MS + 2_000, TimeUnit.MILLISECONDS)
-        .build()
+    /**
+     * 所有 provider 共用一个 OkHttpClient（共享连接池与线程池）。
+     *
+     * 原来每个 provider 各 new 一个 Builder，且每次请求再 newBuilder().build()，
+     * 等于每次查询都新建一整套连接池/Dispatcher —— 5 个源并发时瞬间创建 5 套资源，
+     * 在移动网络下极易出现大量请求同时失败（截图里 5 个源全红就是这么来的）。
+     * 超时改为在 Call 级别设置，不再重建 client。
+     */
+    private val http: OkHttpClient = client ?: SHARED_CLIENT
 
     val id: String get() = spec.id
 
@@ -54,20 +57,29 @@ abstract class IpProvider(
                 result(
                     ProviderStatus.ERROR,
                     error = if (code in 400..499) "请求被拒绝 ($code)" else "服务暂时不可用 ($code)",
-                )
+                ).withLatency(elapsed(started))
             } else {
                 try {
-                    parse(body, ip).withLatency(System.nanoTime())
+                    parse(body, ip).withLatency(elapsed(started))
                 } catch (_: Exception) {
                     result(ProviderStatus.ERROR, error = "响应解析失败，请稍后重试")
                 }
             }
-        } catch (_: IOException) {
-            result(ProviderStatus.ERROR, error = "网络超时或不可达，请稍后重试")
+        } catch (e: IOException) {
+            // 带上耗时，才能区分“秒失败（DNS/连接被拒）”和“等到超时”
+            result(
+                ProviderStatus.ERROR,
+                error = if (e is java.net.SocketTimeoutException || e is java.io.InterruptedIOException) {
+                    "请求超时（${elapsed(started)} ms）"
+                } else {
+                    "网络不可达：${e.message ?: e.javaClass.simpleName}"
+                },
+            ).withLatency(elapsed(started))
         } catch (_: IllegalArgumentException) {
-            result(ProviderStatus.ERROR, error = "请求参数无效")
-        } catch (_: Exception) {
-            result(ProviderStatus.ERROR, error = "查询失败，请稍后重试")
+            result(ProviderStatus.ERROR, error = "请求参数无效").withLatency(elapsed(started))
+        } catch (e: Exception) {
+            result(ProviderStatus.ERROR, error = "查询失败：${e.message ?: e.javaClass.simpleName}")
+                .withLatency(elapsed(started))
         }
     }
 
@@ -137,16 +149,10 @@ abstract class IpProvider(
 
     private suspend fun execute(request: Request, timeoutMs: Long): Response {
         val timeout = max(1_000L, timeoutMs)
-        // 注意：call.timeout() 必须在 enqueue() 之前设置才可靠。
-        // 原来写在 enqueue 之后（且没有 try/finally 复位），对已排队的 Call 改超时是不生效的，
-        // 结果就是“设置里改超时没用”，请求可能一直挂到 OkHttp 的 callTimeout。
-        val client = http.newBuilder()
-            .connectTimeout(timeout, TimeUnit.MILLISECONDS)
-            .readTimeout(timeout, TimeUnit.MILLISECONDS)
-            .writeTimeout(timeout, TimeUnit.MILLISECONDS)
-            .callTimeout(timeout + 1_000, TimeUnit.MILLISECONDS)
-            .build()
-        val call = client.newCall(request)
+        val call = http.newCall(request)
+        // 必须在 enqueue() 之前设置 Call 级超时，否则对已入队的 Call 不生效
+        // （这正是之前“设置里改超时没用”的原因）。
+        call.timeout().timeout(timeout + 1_000, TimeUnit.MILLISECONDS)
         return try {
             suspendCancellableCoroutine { cont ->
                 call.enqueue(object : Callback {
@@ -168,6 +174,24 @@ abstract class IpProvider(
 
     companion object {
         const val DEFAULT_TIMEOUT_MS: Long = 8_000
+
+        /**
+         * 进程级共享的 OkHttpClient。
+         * - 复用连接池，避免每个请求/每个 provider 各建一套；
+         * - 限制并发，防止 5 个源同时抢占移动网络；
+         * - 打开重定向跟随（部分接口会 30x）。
+         */
+        internal val SHARED_CLIENT: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .readTimeout(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .writeTimeout(DEFAULT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .callTimeout(DEFAULT_TIMEOUT_MS + 3_000, TimeUnit.MILLISECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .retryOnConnectionFailure(true)
+                .build()
+        }
     }
 }
 

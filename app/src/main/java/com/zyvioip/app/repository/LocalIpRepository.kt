@@ -36,16 +36,23 @@ class LocalIpRepository(
     }
 
     suspend fun detect(): String? = withContext(Dispatchers.IO) {
-        // 原来是一个端点失败后再试下一个（串行），冷启动最坏要等 4 个 5s 超时。
-        // 改成并发探测：谁先返回有效的公网 IP 就用谁，整体只受最外层超时约束。
+        // 先串行试前两个（最快最稳的 ipify），拿到就返回。
+        // 只有都失败时才并发探测剩余端点 —— 这样冷启动通常只发 1 个请求，
+        // 不会和后面的 5 个供应商请求抢网络。
+        val primary = endpoints.take(2)
+        val fallback = endpoints.drop(2)
+
+        for (url in primary) {
+            val ip = runCatching { fetchIp(url) }.getOrNull()
+            if (ip != null && com.zyvioip.app.util.isValidIp(ip)) return@withContext ip
+        }
+        if (fallback.isEmpty()) return@withContext null
+
         coroutineScope {
-            val jobs = endpoints.map { url ->
-                async {
-                    runCatching { fetchIp(url) }.getOrNull()
-                }
+            val jobs = fallback.map { url ->
+                async { runCatching { fetchIp(url) }.getOrNull() }
             }
-            // 最多等 6 秒拿结果；拿不到就放弃（有缓存时不会走到这里）
-            val results = withTimeoutOrNull(6_000L) { jobs.map { it.await() } } ?: emptyList()
+            val results = withTimeoutOrNull(5_000L) { jobs.map { it.await() } } ?: emptyList()
             results.firstOrNull { it != null && com.zyvioip.app.util.isValidIp(it) }
         }
     }
