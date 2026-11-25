@@ -15,7 +15,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,13 +31,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -188,47 +191,59 @@ private fun HomeContent(
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 搜索区：原来用带浮动 label 的 OutlinedTextField（默认 56dp + label 撑高），
+        // 再配一个大号 Button，比很多列表行都高。这里改成 dense 单行输入框 + 小按钮。
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = 4.dp),
         ) {
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                label = { Text("IP 地址") },
-                placeholder = { Text("输入 IPv4 / IPv6 地址") },
+                placeholder = { Text("输入 IPv4 / IPv6", style = MaterialTheme.typography.bodyMedium) },
                 singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                 trailingIcon = {
                     if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "清空")
+                        IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "清空", modifier = Modifier.size(16.dp))
                         }
                     }
                 },
             )
-            Button(onClick = onSubmit, enabled = !loading) { Text("查询") }
+            Button(
+                onClick = onSubmit,
+                enabled = !loading,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+            ) { Text("查询", style = MaterialTheme.typography.labelLarge) }
         }
 
-        // 本机公网 IP：原来只当 placeholder，用户很难主动复用，这里做成可点击的胶囊。
+        // 本机公网 IP：做成一行紧凑的可点文字，不再占一整块胶囊高度。
         localIp?.let { ip ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(
-                    onClick = { onUseLocalIp(ip) },
-                    label = { Text("本机 IP：$ip", maxLines = 1) },
-                )
-                Text("点击直接查询", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(
+                text = "本机 IP $ip · 点击查询",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onUseLocalIp(ip) }
+                    .padding(vertical = 2.dp, horizontal = 4.dp),
+            )
         }
 
         if (loading) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                Text("正在查询…", style = MaterialTheme.typography.labelMedium)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                Text("正在查询…", style = MaterialTheme.typography.labelSmall)
             }
         }
 
@@ -250,8 +265,8 @@ private fun HomeContent(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 4.dp),
             ) {
                 items(providerStates, key = { it.providerId }) { state ->
                     ProviderDismissItem(state, onRetry = onRetry, onRemove = onRemove)
@@ -261,13 +276,13 @@ private fun HomeContent(
 
         // 原来这里是个占满宽度的实心主按钮，视觉上比“查询”还重，喧宾夺主。
         // 改成弱化的描边按钮，并固定在底部安全区之上。
-        OutlinedButton(
+        TextButton(
             onClick = onPendingOpen,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("添加供应商")
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("添加供应商", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -280,39 +295,62 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlag
         it.outcome.status == com.zyvioip.app.provider.ProviderStatus.ERROR ||
             it.outcome.status == com.zyvioip.app.provider.ProviderStatus.NEEDS_CONFIG
     }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(countryFlagFromCode(result.signals.countryCode), style = MaterialTheme.typography.headlineSmall)
-                Text(result.ip, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    // 紧凑版摘要：原来 IP 用 headlineSmall、分数用 headlineMedium，再加 16dp 内边距和 6dp 行距，
+    // 一张卡能吃掉小屏近三分之一高度。这里整体降一档，并把“地点/类型”合到一行。
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(countryFlagFromCode(result.signals.countryCode), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = result.ip,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Spacer(Modifier.weight(1f))
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = result.purity?.toString() ?: "--",
-                        color = color,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text("纯净度", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(
+                    text = result.purity?.toString() ?: "--",
+                    color = color,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text("纯净度", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            val place = listOfNotNull(result.signals.country, result.signals.city).joinToString(" · ").ifBlank { "位置未知" }
-            Text(place, style = MaterialTheme.typography.bodyMedium)
-            Text("类型：${result.typeLabel}", style = MaterialTheme.typography.labelMedium)
 
-            // 让用户知道这个分数是几个源算出来的，失败几个。
+            val place = listOfNotNull(result.signals.country, result.signals.city)
+                .joinToString(" · ")
+                .ifBlank { "位置未知" }
             Text(
-                "成功 $succeeded 个来源" + if (failed > 0) "，$failed 个未成功" else "",
+                text = "$place · ${result.typeLabel}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Text(
+                "成功 $succeeded" + if (failed > 0) " / 未成功 $failed" else "",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             if (result.purity == null) {
-                Text("暂无可评分结果：检查供应商失败 / 信息源 / 未配置", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                Text(
+                    "暂无可评分结果：各来源均失败或未配置",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
-            // 尊重“显示风险标记”开关。
             if (showFlags && result.flags.isNotEmpty()) {
-                Text("标记：${result.flags.joinToString("、") { flagLabel(it) }}", style = MaterialTheme.typography.labelMedium, color = color)
+                Text(
+                    "标记：${result.flags.joinToString("、") { flagLabel(it) }}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = color,
+                )
             }
         }
     }

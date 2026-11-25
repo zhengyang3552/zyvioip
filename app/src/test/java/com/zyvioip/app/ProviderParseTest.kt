@@ -3,6 +3,7 @@ package com.zyvioip.app
 import com.zyvioip.app.provider.AbuseIpdbProvider
 import com.zyvioip.app.provider.GetIpIntelProvider
 import com.zyvioip.app.provider.IpapiIsAnonProvider
+import com.zyvioip.app.provider.IpWhoIsProvider
 import com.zyvioip.app.provider.IpdataFreeProvider
 import com.zyvioip.app.provider.ProviderConfig
 import com.zyvioip.app.provider.ProviderFlag
@@ -66,29 +67,43 @@ class ProviderParseTest {
         assertTrue(bad.flags.contains(ProviderFlag.ABUSER))
     }
 
-    @Test fun ipapiIsAnon_asnTypeStringMarksDatacenter() {
+    @Test fun ipapiIsAnon_parsesFlatFreeTierResponse() {
         val provider = IpapiIsAnonProvider()
-        val hosting = provider.parseForTest(
-            """{"ip":"1.2.3.4","is_datacenter":false,"asn":{"asn":12345,"name":"Cloud","type":"hosting"}}""",
-            "1.2.3.4",
-        )
-        assertTrue("asn.type=hosting 应判定为机房", hosting.flags.contains(ProviderFlag.DATACENTER))
-
-        val isp = provider.parseForTest(
-            """{"ip":"1.2.3.4","asn":{"asn":12345,"name":"Telecom","type":"isp"}}""",
-            "1.2.3.4",
-        )
-        assertFalse(isp.flags.contains(ProviderFlag.DATACENTER))
+        // 这是 api.ipapi.is 免费端点的真实响应结构（扁平，无 location/asn 嵌套）
+        val body = """{"ip":"8.8.8.8","is_bogon":false,"company":"Google LLC","asn":"AS15169 Google LLC","city":"Mountain View","region":"California","country":"United States","lat":37.38605,"lon":-122.08385,"timezone":"America/Los_Angeles"}"""
+        val outcome = provider.parseForTest(body, "8.8.8.8")
+        assertEquals(ProviderStatus.SUCCESS, outcome.status)
+        assertEquals("United States", outcome.country)
+        assertEquals("US", outcome.countryCode)
+        assertEquals("Mountain View", outcome.city)
+        assertEquals("California", outcome.region)
+        assertEquals("Google LLC", outcome.company)
+        assertEquals("AS15169", outcome.asn)
+        // 免费端点没有评分，不能凭空造分
+        assertEquals(null, outcome.purity)
     }
 
-    @Test fun ipapiIsAnon_vpnAndProxyAreDistinctFlags() {
+    @Test fun ipapiIsAnon_bogonIsReportedAsError() {
         val provider = IpapiIsAnonProvider()
-        val proxy = provider.parseForTest(
-            """{"ip":"1.2.3.4","is_proxy":true,"is_vpn":false}""",
-            "1.2.3.4",
+        val outcome = provider.parseForTest("""{"ip":"192.168.1.1","is_bogon":true}""", "192.168.1.1")
+        assertEquals(ProviderStatus.ERROR, outcome.status)
+    }
+
+    @Test fun ipWhoIs_parsesSuccessAndFailure() {
+        val provider = IpWhoIsProvider()
+        val ok = provider.parseForTest(
+            """{"ip":"8.8.8.8","success":true,"country":"United States","country_code":"US","region":"California","city":"San Jose","connection":{"asn":15169,"org":"Google LLC","isp":"Google LLC"}}""",
+            "8.8.8.8",
         )
-        assertTrue(proxy.flags.contains(ProviderFlag.PROXY))
-        assertFalse("代理不应该被同时标成 VPN", proxy.flags.contains(ProviderFlag.VPN))
+        assertEquals(ProviderStatus.SUCCESS, ok.status)
+        assertEquals("US", ok.countryCode)
+        assertEquals("San Jose", ok.city)
+        assertEquals("Google LLC", ok.company)
+        assertEquals("AS15169", ok.asn)
+
+        val fail = provider.parseForTest("""{"success":false,"message":"invalid IP address"}""", "x")
+        assertEquals(ProviderStatus.ERROR, fail.status)
+        assertEquals("invalid IP address", fail.error)
     }
 
     @Test fun ipdataFree_errorBodyIsReportedAsError() {

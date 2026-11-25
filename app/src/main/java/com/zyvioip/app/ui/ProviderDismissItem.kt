@@ -5,11 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -114,11 +113,13 @@ internal fun ProviderDismissItem(
 
 private val ACTION_WIDTH = 64.dp
 
-/** 兜底：给删除动作一个明确的文案入口，避免用户只能靠手势发现该功能。 */
+/** 兜底：给删除动作一个明确的文案提示，避免用户只能靠手势发现该功能。 */
 @Composable
 internal fun RemoveHint() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("左滑卡片可移除供应商", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(4.dp))
-    }
+    Text(
+        "左滑卡片可移除供应商",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
+    )
 }

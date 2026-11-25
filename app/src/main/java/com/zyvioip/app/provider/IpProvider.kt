@@ -55,10 +55,13 @@ object ProviderCatalog {
             name = "GetIPIntel",
             auth = ProviderAuth.EMAIL,
             requiresEmail = true,
-            defaultActive = true,
+            // 服务强制要求联系邮箱，否则返回 -6。
+            // 默认启用会让新装用户一进来就看到一张“需要配置”的红卡，改为默认关闭，
+            // 配好邮箱后在“添加供应商”里加进来。
+            defaultActive = false,
             scorable = true,
             signalKind = ProviderSignalKind.PURITY,
-            note = "Proxy probability score. A contact email is required by the service.",
+            note = "代理概率评分。必须填写可收发的联系邮箱，否则服务拒绝查询。",
             configLabel = "联系邮箱",
         ),
         ProviderSpec(
@@ -71,14 +74,25 @@ object ProviderCatalog {
             note = "Free geolocation and proxy/hosting flags (HTTP, no key).",
         ),
         ProviderSpec(
-            id = "ipdatafree",
-            name = "ipdata.free",
+            id = "ipwhois",
+            name = "ipwho.is",
             auth = ProviderAuth.NONE,
-            requiresKey = false,
             defaultActive = true,
             scorable = false,
             signalKind = ProviderSignalKind.FLAG,
-            note = "Free city-level/ASN info; no risk score.",
+            note = "完全免密钥：地理位置 + ASN，无限流门槛。",
+        ),
+        ProviderSpec(
+            id = "ipdatafree",
+            name = "ipdata.co",
+            auth = ProviderAuth.API_KEY,
+            // 实测 api.ipdata.co 无 key 一律返回 401（"You have not provided a valid API Key"），
+            // 之前标成 requiresKey=false 且默认启用，导致默认状态下一张卡片必然“请求被拒绝 (401)”。
+            requiresKey = true,
+            defaultActive = false,
+            scorable = false,
+            signalKind = ProviderSignalKind.FLAG,
+            note = "需要 ipdata.co 免费额度的 API Key（无 key 会返回 401）。",
             configLabel = "API Key",
         ),
         ProviderSpec(
@@ -86,9 +100,11 @@ object ProviderCatalog {
             name = "ipapi.is (anon)",
             auth = ProviderAuth.NONE,
             defaultActive = true,
-            scorable = true,
-            signalKind = ProviderSignalKind.PURITY,
-            note = "Anonymous proxy score and location, no key required.",
+            // 免费端点实测只返回地理信息（无 abuse_score / VPN / proxy 标记），
+            // 之前标成 scorable=true 会让“纯净度”分母里混进一个永远拿不到分的源。
+            scorable = false,
+            signalKind = ProviderSignalKind.INFO,
+            note = "免密钥免费端点：仅提供国家/城市/ASN，不提供风险评分。",
         ),
         ProviderSpec(
             id = "ipapisis",
@@ -177,6 +193,7 @@ object ProviderCatalog {
         "getipintel" -> GetIpIntelProvider(spec, config)
         "ipapicom" -> IpApiComProvider(spec, config)
         "ipdatafree" -> IpdataFreeProvider(spec, config)
+        "ipwhois" -> IpWhoIsProvider(spec, config)
         "ipapisanon" -> IpapiIsAnonProvider(spec, config)
         "ipapisis" -> IpapiIsProvider(spec, config)
         "abuseipdb" -> AbuseIpdbProvider(spec, config)

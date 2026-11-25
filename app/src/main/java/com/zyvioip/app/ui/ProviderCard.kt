@@ -62,13 +62,13 @@ fun ProviderCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = spec.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = spec.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(text = statusText, color = statusColor, style = MaterialTheme.typography.labelMedium)
                 if (status == ProviderStatus.ERROR || status == ProviderStatus.NEEDS_CONFIG) {
-                    IconButton(onClick = { onRetry(spec.id) }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "重试 ${spec.name}")
+                    IconButton(onClick = { onRetry(spec.id) }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "重试 ${spec.name}", modifier = Modifier.size(16.dp))
                     }
                 }
             }

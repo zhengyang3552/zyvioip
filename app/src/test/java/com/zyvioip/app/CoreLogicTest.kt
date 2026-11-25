@@ -79,12 +79,24 @@ class CoreLogicTest {
     }
 
     @Test fun catalog_hasElevenProvidersAndFourDefaultActive() {
-        assertEquals(11, ProviderCatalog.all.size)
-        val expectedActive = setOf("getipintel", "ipapicom", "ipdatafree", "ipapisanon")
+        assertEquals(12, ProviderCatalog.all.size)
+        // ipdata.co 无 key 必然 401，已移出默认启用；由真正免密钥的 ipwho.is 顶替
+        val expectedActive = setOf("getipintel", "ipapicom", "ipwhois", "ipapisanon")
         assertEquals(expectedActive, ProviderCatalog.defaultActiveIds)
         assertEquals(com.zyvioip.app.provider.ProviderAuth.EMAIL, ProviderCatalog.byId("getipintel")!!.auth)
-        assertFalse(ProviderCatalog.byId("ipdatafree")!!.requiresKey)
-        assertTrue(ProviderCatalog.byId("ipdatafree")!!.defaultActive)
+        // ipdata.co 现在必须配置 key
+        assertTrue(ProviderCatalog.byId("ipdatafree")!!.requiresKey)
+        assertFalse(ProviderCatalog.byId("ipdatafree")!!.defaultActive)
+        // 新源免 key 且默认启用
+        assertFalse(ProviderCatalog.byId("ipwhois")!!.requiresKey)
+        assertTrue(ProviderCatalog.byId("ipwhois")!!.defaultActive)
+        // 免费 ipapi.is 端点不提供评分
+        assertFalse(ProviderCatalog.byId("ipapisanon")!!.scorable)
+        // 默认启用的源里，每个都必须是“无 key 也能跑”的
+        ProviderCatalog.all.filter { it.defaultActive }.forEach { spec ->
+            assertFalse("默认启用的 ${spec.id} 不应该要求 key", spec.requiresKey)
+            assertFalse("默认启用的 ${spec.id} 不应该要求邮箱", spec.requiresEmail)
+        }
         assertEquals("联系邮箱", ProviderCatalog.byId("getipintel")!!.configLabel)
         assertNull(ProviderCatalog.byId("NOPE"))
     }

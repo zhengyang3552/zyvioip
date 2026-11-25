@@ -29,13 +29,17 @@ class GetIpIntelProvider(
         // GetIPIntel 用负数返回错误码（-1 无效 IP、-2 未提供联系人、-3 配额、-4 访问受限…），
         // 旧代码把 -1 当成合法评分算出 purity=100（最干净），正好把最脏的情况显示成最干净。
         if (asDouble < 0) {
-            val reason = when (asDouble.toInt()) {
+            // 服务会把具体原因放在 message 里，优先展示原文，代码只做兜底。
+            val fallback = when (asDouble.toInt()) {
                 -1 -> "IP 地址无效"
-                -2 -> "需要有效的联系邮箱"
-                -3, -4 -> "查询配额已用尽或被限制"
+                -2 -> "请求参数无效"
+                -3 -> "不支持该查询格式"
+                -4 -> "查询配额已用尽"
+                -5 -> "访问受限（请稍后重试）"
+                -6 -> "需要填写有效的联系邮箱"
                 else -> "服务返回错误码 ${asDouble.toInt()}"
             }
-            return result(ProviderStatus.ERROR, error = reason)
+            return result(ProviderStatus.ERROR, error = textField(map, "message") ?: fallback)
         }
         val normalized = if (asDouble <= 1.0) asDouble * 100.0 else asDouble
         val flags = if (normalized >= 50.0) setOf(ProviderFlag.PROXY) else emptySet()
