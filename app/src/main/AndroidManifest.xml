@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      NetworkWatcher 用 registerDefaultNetworkCallback 监听 Wi-Fi/移动网络切换，
+      以便自动重新探测本机 IP。该 API 需要 ACCESS_NETWORK_STATE，
+      缺失会在运行时抛 SecurityException（不只是 lint 警告）。
+      这是普通权限，安装即授予，不需要运行时申请。
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!--
       不再用 android:usesCleartextTraffic="true" 全局放行明文 HTTP：
