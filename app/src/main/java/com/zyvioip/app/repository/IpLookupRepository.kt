@@ -17,8 +17,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** Coordinates local IP discovery, concurrent provider queries, TTL caching and aggregation. */
 class IpLookupRepository(
@@ -33,7 +31,8 @@ class IpLookupRepository(
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
     private val _homeSettings = MutableStateFlow(HomeSettings())
-    private val mutex = Mutex()
+    /** 查询代际号：只有最新一次查询允许写回状态，避免启动查询与手动查询互相覆盖。 */
+    @Volatile private var searchGeneration = 0L
     private var settings = LookupSettings()
     private var currentIp: String? = null
 
@@ -54,6 +53,10 @@ class IpLookupRepository(
             showFlags = settings.showFlags,
             notifications = settings.notifications,
         )
+        // 先把本轮要用的供应商卡片渲染出来（PENDING），别让用户盯着空白页等 IP 探测。
+        _providerStates.value = settings.activeIds.mapNotNull { id ->
+            ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
+        }
         val cached = cache.getLocalIp(LOCAL_CACHE_KEY, LocalIpRepository.LOCAL_CACHE_TTL_MS)?.takeIf(::isValidIp)
         val detected = cached ?: localIpRepository.detect()
         if (detected != null) {
@@ -61,9 +64,6 @@ class IpLookupRepository(
             if (cached != detected) cache.putLocalIp(LOCAL_CACHE_KEY, detected)
         }
         currentIp = _localIp.value
-        _providerStates.value = settings.activeIds.mapNotNull { id ->
-            ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
-        }
         // 尊重“启动时自动查询本机 IP”开关：关掉时只显示本机 IP，不发任何请求。
         if (settings.autoLookup) currentIp?.let { search(it) }
     }
@@ -74,6 +74,11 @@ class IpLookupRepository(
             _error.value = "IP 格式不正确"
             return
         }
+        // 每次查询分配一个自增序号。启动时 initialize() 会自动 search 一次，
+        // 用户点“查询”可能马上再触发一次，两次并发跑完会互相覆盖 _providerStates，
+        // 先写完的那次可能把后一次的 LOADING/结果盖掉，看起来像“全部失败”。
+        // 这里只允许“最新一次”查询写回状态。
+        val generation = ++searchGeneration
         currentIp = cleanIp
         _error.value = null
         _loading.value = true
@@ -83,17 +88,25 @@ class IpLookupRepository(
             val results = coroutineScope {
                 active.map { spec -> async { query(spec.id, cleanIp, bypassCache = false) } }.awaitAll()
             }
+            if (generation != searchGeneration) return // 已经有更新的查询了，丢弃本次结果
             _providerStates.value = results
             rebuild(cleanIp, results)
         } finally {
-            _loading.value = false
+            if (generation == searchGeneration) _loading.value = false
         }
     }
 
     override suspend fun retry(providerId: String) {
         val spec = ProviderCatalog.byId(providerId) ?: return
         val ip = currentIp ?: return
+        val generation = searchGeneration
+        // 重试只重跑这一个源，先把它标成 LOADING，用户能看到进度而不是一直停在“失败”
+        _providerStates.value = _providerStates.value.map {
+            if (it.providerId == spec.id) it.copy(status = ProviderStatus.LOADING, error = null) else it
+        }
         val result = query(spec.id, ip, bypassCache = true)
+        // 期间如果用户又发起了新的整体查询，就不要用这次单源结果去覆盖它
+        if (generation != searchGeneration) return
         val next = _providerStates.value.map { if (it.providerId == spec.id) result else it }
         _providerStates.value = if (next.any { it.providerId == spec.id }) next else next + result
         rebuild(ip, next)
@@ -160,7 +173,16 @@ class IpLookupRepository(
             notifications = settings.notifications,
         )
         settingsRepository?.save(this.settings)
-        _homeSettings.value = settings
+        // 回写“实际生效”的值，而不是用户原始输入：
+        // 原来直接回写 settings，用户填 0 或 9999 时界面显示的是非法值，但底层已被夹到 1~60s，
+        // 两边不一致会让人以为设置没生效。
+        _homeSettings.value = HomeSettings(
+            timeoutMs = this.settings.timeoutMs,
+            cacheTtlMinutes = this.settings.cacheTtlMs / 60_000L,
+            autoLookup = this.settings.autoLookup,
+            showFlags = this.settings.showFlags,
+            notifications = this.settings.notifications,
+        )
     }
 
     private suspend fun query(providerId: String, ip: String, bypassCache: Boolean): ProviderOutcome {
@@ -176,23 +198,26 @@ class IpLookupRepository(
                 return cached.asOutcome()
             }
         }
-        return mutex.withLock {
-            try {
-                val outcome = ProviderCatalog.create(spec, config).lookup(ip, settings.timeoutMs)
-                if (outcome.status == ProviderStatus.SUCCESS) {
-                    cache.putProviderResult(key, com.zyvioip.app.model.ProviderResult(
-                        providerId = providerId, status = com.zyvioip.app.model.ProviderStatus.SUCCESS,
-                        signals = com.zyvioip.app.model.IpSignals(
-                            ip = outcome.ip, country = outcome.country, city = outcome.city,
-                            company = outcome.company, asn = outcome.asn, flags = outcome.flags,
-                        ),
-                        purity = outcome.purity, error = outcome.error,
-                    ))
-                }
-                outcome
-            } catch (_: Exception) {
-                ProviderOutcome(providerId, ProviderStatus.ERROR, error = "查询失败，请稍后重试")
+        // 这里绝不能用全局 mutex 包住整个网络请求：
+        // 那会把所有供应商从“并发”变成“串行”，任何一个慢请求都会拖住其余全部。
+        // 表现就是「冷启动时全部失败，手动点一下查询又全部成功」——
+        // 首次冷 DNS 本来就慢，串行叠加后几乎必然撞上超时。
+        // 并发安全改由「状态写回时按 providerId 合并」保证（见 search / retry）。
+        return try {
+            val outcome = ProviderCatalog.create(spec, config).lookup(ip, settings.timeoutMs)
+            if (outcome.status == ProviderStatus.SUCCESS) {
+                cache.putProviderResult(key, com.zyvioip.app.model.ProviderResult(
+                    providerId = providerId, status = com.zyvioip.app.model.ProviderStatus.SUCCESS,
+                    signals = com.zyvioip.app.model.IpSignals(
+                        ip = outcome.ip, country = outcome.country, city = outcome.city,
+                        company = outcome.company, asn = outcome.asn, flags = outcome.flags,
+                    ),
+                    purity = outcome.purity, error = outcome.error,
+                ))
             }
+            outcome
+        } catch (_: Exception) {
+            ProviderOutcome(providerId, ProviderStatus.ERROR, error = "查询失败，请稍后重试")
         }
     }
 

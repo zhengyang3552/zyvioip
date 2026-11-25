@@ -130,8 +130,17 @@ abstract class IpProvider(
     private fun ProviderOutcome.withLatency(ms: Long): ProviderOutcome = copy(latencyMs = max(0, ms))
 
     private suspend fun execute(request: Request, timeoutMs: Long): Response {
-        val call = http.newCall(request)
-        call.timeout().timeout(max(1_000, timeoutMs), TimeUnit.MILLISECONDS)
+        val timeout = max(1_000L, timeoutMs)
+        // 注意：call.timeout() 必须在 enqueue() 之前设置才可靠。
+        // 原来写在 enqueue 之后（且没有 try/finally 复位），对已排队的 Call 改超时是不生效的，
+        // 结果就是“设置里改超时没用”，请求可能一直挂到 OkHttp 的 callTimeout。
+        val client = http.newBuilder()
+            .connectTimeout(timeout, TimeUnit.MILLISECONDS)
+            .readTimeout(timeout, TimeUnit.MILLISECONDS)
+            .writeTimeout(timeout, TimeUnit.MILLISECONDS)
+            .callTimeout(timeout + 1_000, TimeUnit.MILLISECONDS)
+            .build()
+        val call = client.newCall(request)
         return try {
             suspendCancellableCoroutine { cont ->
                 call.enqueue(object : Callback {
