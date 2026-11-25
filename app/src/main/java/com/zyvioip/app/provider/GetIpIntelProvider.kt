@@ -41,14 +41,26 @@ class GetIpIntelProvider(
             }
             return result(ProviderStatus.ERROR, error = textField(map, "message") ?: fallback)
         }
-        val normalized = if (asDouble <= 1.0) asDouble * 100.0 else asDouble
-        val flags = if (normalized >= 50.0) setOf(ProviderFlag.PROXY) else emptySet()
+        // GetIPIntel 的 result 是「该 IP 是代理/VPN 的概率」，范围 0~1（若 >1 则按百分制）。
+        // 关键点：result = 0 表示「没有证据表明是代理」，不是「数据缺失」，也不是风险 0。
+        // 旧实现把它算成 purity=100，用户看到的是“纯净度 100”，很容易误会成评分很高；
+        // 现在统一改成风险分语义：risk = 概率 * 100，同时把话说明白。
+        val probability = if (asDouble <= 1.0) asDouble else asDouble / 100.0
+        val risk = (probability * 100.0).toInt().coerceIn(0, 100)
+        val flags = if (risk >= 50) setOf(ProviderFlag.PROXY) else emptySet()
+        val verdict = when {
+            risk >= 75 -> "高度疑似代理/VPN"
+            risk >= 50 -> "疑似代理/VPN"
+            risk >= 20 -> "可能有代理特征"
+            else -> "未发现代理/VPN 特征"
+        }
         return result(
             status = ProviderStatus.SUCCESS,
             ip = queriedIp,
-            purity = toPurity(normalized),
+            riskScore = risk,
+            purity = toPurity(risk),
             flags = flags,
-            message = map["message"] as? String,
+            message = "$verdict · 代理概率 ${"%.1f".format(probability * 100)}%",
         )
     }
 }

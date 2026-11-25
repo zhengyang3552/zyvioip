@@ -17,6 +17,12 @@ data class IpSignals(
     val isDatacenter: Boolean? = null,
     val isAbuser: Boolean? = null,
     val isMobile: Boolean? = null,
+    /** 是否原生/住宅 IP（IPPure.isResidential）。null = 该源没给结论 */
+    val isResidential: Boolean? = null,
+    /** 是否广播/保留地址（IPPure.isBroadcast） */
+    val isBroadcast: Boolean? = null,
+    /** 各家给出的风险分（0-100，越大越危险），按来源名保存，用于展示明细 */
+    val riskScores: Map<String, Int> = emptyMap(),
     /** True when at least one provider explicitly reported a positive abuse signal. */
     val flags: Set<String> = emptySet(),
 ) {
@@ -27,6 +33,8 @@ data class IpSignals(
         const val FLAG_DATACENTER = "datacenter"
         const val FLAG_ABUSER = "abuser"
         const val FLAG_MOBILE = "mobile"
+        const val FLAG_RESIDENTIAL = "residential"
+        const val FLAG_HOSTING = "hosting"
     }
 }
 
@@ -48,6 +56,9 @@ fun mergeSignals(base: IpSignals, next: IpSignals): IpSignals = IpSignals(
     isDatacenter = mergeBoolean(base.isDatacenter, next.isDatacenter),
     isAbuser = mergeBoolean(base.isAbuser, next.isAbuser),
     isMobile = mergeBoolean(base.isMobile, next.isMobile),
+    isResidential = mergeBoolean(base.isResidential, next.isResidential),
+    isBroadcast = mergeBoolean(base.isBroadcast, next.isBroadcast),
+    riskScores = base.riskScores + next.riskScores,
     flags = base.flags + next.flags,
 )
 

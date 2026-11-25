@@ -291,12 +291,14 @@ private fun HomeContent(
 private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlags: Boolean) {
     val color = purityColor(result.purity)
     val succeeded = result.providerStates.count { it.outcome.succeeded }
+    // SKIPPED（例如“只能查本机 IP”的源）不算失败，单独统计
     val failed = result.providerStates.count {
         it.outcome.status == com.zyvioip.app.provider.ProviderStatus.ERROR ||
             it.outcome.status == com.zyvioip.app.provider.ProviderStatus.NEEDS_CONFIG
     }
-    // 紧凑版摘要：原来 IP 用 headlineSmall、分数用 headlineMedium，再加 16dp 内边距和 6dp 行距，
-    // 一张卡能吃掉小屏近三分之一高度。这里整体降一档，并把“地点/类型”合到一行。
+    val skipped = result.providerStates.count {
+        it.outcome.status == com.zyvioip.app.provider.ProviderStatus.SKIPPED
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -312,13 +314,15 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlag
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.weight(1f))
+                // 直接显示“风险分”，比让用户从纯净度反推更直观。
+                // 旧版只有纯净度，且把所有源的分数反着算，很容易看成“越脏分越高”。
                 Text(
-                    text = result.purity?.toString() ?: "--",
+                    text = result.riskScore?.toString() ?: "--",
                     color = color,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                 )
-                Text("纯净度", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("风险", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             val place = listOfNotNull(result.signals.country, result.signals.city)
@@ -332,15 +336,32 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlag
                 overflow = TextOverflow.Ellipsis,
             )
 
+            // 谁给了分、给了多少，一目了然；没给分的源不参与平均
+            if (result.signals.riskScores.isNotEmpty()) {
+                Text(
+                    text = result.signals.riskScores.entries.joinToString("  ") { "${it.key} ${it.value}" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            val summaryLine = buildString {
+                append("成功 $succeeded")
+                if (failed > 0) append(" / 未成功 $failed")
+                if (skipped > 0) append(" / 跳过 $skipped")
+                if (result.scoredProviderCount > 0) append(" · ${result.scoredProviderCount} 个源参与评分")
+            }
             Text(
-                "成功 $succeeded" + if (failed > 0) " / 未成功 $failed" else "",
+                summaryLine,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            if (result.purity == null) {
+            if (result.riskScore == null) {
                 Text(
-                    "暂无可评分结果：各来源均失败或未配置",
+                    "没有源提供风险评分：免费接口多数只给归属信息",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                 )

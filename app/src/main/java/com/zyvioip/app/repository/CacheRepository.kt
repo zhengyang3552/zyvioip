@@ -97,6 +97,7 @@ fun ProviderResult.asOutcome(): com.zyvioip.app.provider.ProviderOutcome =
             ProviderStatus.NEEDS_CONFIG -> com.zyvioip.app.provider.ProviderStatus.NEEDS_CONFIG
             ProviderStatus.LOADING -> com.zyvioip.app.provider.ProviderStatus.LOADING
             ProviderStatus.PENDING -> com.zyvioip.app.provider.ProviderStatus.PENDING
+            ProviderStatus.SKIPPED -> com.zyvioip.app.provider.ProviderStatus.SKIPPED
         },
         ip = signals.ip,
         country = signals.country,
@@ -106,6 +107,10 @@ fun ProviderResult.asOutcome(): com.zyvioip.app.provider.ProviderOutcome =
         company = signals.company,
         asn = signals.asn,
         purity = purity,
+        // 风险分/住宅属性从缓存还原，否则命中缓存后卡片会丢分
+        riskScore = signals.riskScores.values.firstOrNull(),
+        isResidential = signals.isResidential,
+        isBroadcast = signals.isBroadcast,
         flags = signals.flags,
         fromCache = fromCache,
     )

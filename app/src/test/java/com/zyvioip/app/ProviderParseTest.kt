@@ -3,6 +3,7 @@ package com.zyvioip.app
 import com.zyvioip.app.provider.AbuseIpdbProvider
 import com.zyvioip.app.provider.GetIpIntelProvider
 import com.zyvioip.app.provider.IpapiIsAnonProvider
+import com.zyvioip.app.provider.IpPureProvider
 import com.zyvioip.app.provider.IpWhoIsProvider
 import com.zyvioip.app.provider.IpdataFreeProvider
 import com.zyvioip.app.provider.ProviderConfig
@@ -27,15 +28,24 @@ class ProviderParseTest {
         }
     }
 
-    @Test fun getIpIntel_validProbabilityMapsToPurity() {
+    @Test fun getIpIntel_zeroMeansNoProxyEvidence_notPerfectScore() {
         val provider = GetIpIntelProvider()
         val clean = provider.parseForTest("""{"status":"success","result":0.0}""", "1.2.3.4")
         assertEquals(ProviderStatus.SUCCESS, clean.status)
+        // 0 表示“没有代理证据”，风险分应为 0；纯净度才是 100。
+        // 用户反馈“给的数字直接是 0”，就是这里：现在界面统一显示风险分，0 就是 0，语义一致。
+        assertEquals(0, clean.riskScore)
         assertEquals(100, clean.purity)
+        assertTrue(clean.message!!.contains("未发现代理"))
+    }
 
+    @Test fun getIpIntel_highProbabilityMapsToHighRisk() {
+        val provider = GetIpIntelProvider()
         val dirty = provider.parseForTest("""{"status":"success","result":0.9}""", "1.2.3.4")
+        assertEquals(90, dirty.riskScore)
         assertEquals(10, dirty.purity)
         assertTrue(dirty.flags.contains(ProviderFlag.PROXY))
+        assertTrue("高度疑似代理/VPN" in dirty.message!!)
     }
 
     @Test fun abuseIpdb_usesUsageTypeForDatacenterFlag() {
@@ -124,5 +134,46 @@ class ProviderParseTest {
         assertEquals("JP", outcome.countryCode)
         assertEquals("Tokyo", outcome.city)
         assertEquals("ISP", outcome.company)
+    }
+
+    @Test fun ipPure_parsesFraudScoreAndResidential() {
+        val provider = IpPureProvider()
+        val body = """{"ip":"1.2.3.4","asn":36352,"asOrganization":"RackNerd LLC","country":"United States","countryCode":"US","region":"Washington","regionCode":"WA","city":"Seattle","timezone":"America/Los_Angeles","fraudScore":28,"isResidential":false,"isBroadcast":false}"""
+        val outcome = provider.parseForTest(body, "1.2.3.4")
+        assertEquals(ProviderStatus.SUCCESS, outcome.status)
+        assertEquals("AS36352", outcome.asn)
+        assertEquals("RackNerd LLC", outcome.company)
+        assertEquals(28, outcome.riskScore)
+        assertEquals(72, outcome.purity)
+        assertEquals(false, outcome.isResidential)
+        assertEquals("US", outcome.countryCode)
+        // 非住宅 -> 机房标记
+        assertTrue(outcome.flags.contains(ProviderFlag.DATACENTER))
+    }
+
+    @Test fun ipPure_residentialHasNoDatacenterFlag() {
+        val provider = IpPureProvider()
+        val body = """{"ip":"9.9.9.9","asn":4134,"asOrganization":"Chinanet","country":"China","countryCode":"CN","city":"Shanghai","fraudScore":5,"isResidential":true,"isBroadcast":false}"""
+        val outcome = provider.parseForTest(body, "9.9.9.9")
+        assertEquals(true, outcome.isResidential)
+        assertFalse(outcome.flags.contains(ProviderFlag.DATACENTER))
+    }
+
+    @Test fun ipPure_rejectsOtherIpBecauseApiCannotQueryArbitraryAddresses() {
+        val provider = IpPureProvider()
+        // 接口只会返回调用方 IP；若与目标不一致必须报错，不能把本机数据冒充成目标 IP
+        val body = """{"ip":"1.2.3.4","asn":1,"country":"United States","fraudScore":10,"isResidential":false}"""
+        val outcome = provider.parseForTest(body, "8.8.8.8")
+        assertEquals(ProviderStatus.ERROR, outcome.status)
+        assertTrue(outcome.error!!.contains("只支持查询本机 IP"))
+    }
+
+    @Test fun ipApiCom_readsOrgInsteadOfIsp() {
+        val provider = com.zyvioip.app.provider.IpApiComProvider()
+        val body = """{"status":"success","country":"United States","countryCode":"US","city":"Buffalo","isp":"HostPapa","org":"RackNerd LLC","as":"AS36352 HostPapa","hosting":true,"query":"1.2.3.4"}"""
+        val outcome = provider.parseForTest(body, "1.2.3.4")
+        // org 才是真实运营方；isp 只是线路商
+        assertEquals("RackNerd LLC", outcome.company)
+        assertTrue(outcome.flags.contains(ProviderFlag.DATACENTER))
     }
 }

@@ -10,6 +10,8 @@ fun classifyIpType(signals: IpSignals, flagNames: Set<String> = signals.flags): 
     signals.isVpn == true || flagNames.contains(IpSignals.FLAG_VPN) -> IpType.VPN
     signals.isDatacenter == true || flagNames.contains(IpSignals.FLAG_DATACENTER) -> IpType.DATACENTER
     signals.isMobile == true || flagNames.contains(IpSignals.FLAG_MOBILE) -> IpType.MOBILE
+    // 有源明确判定为住宅/原生 IP，且没命中上面的风险类型，才归到住宅
+    signals.isResidential == true -> IpType.RESIDENTIAL
     else -> IpType.UNKNOWN
 }
 

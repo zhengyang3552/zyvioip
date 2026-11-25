@@ -40,12 +40,27 @@ class SettingsRepository(context: Context) {
     suspend fun load(): LookupSettings = store.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { prefs ->
-            // 用“键是否存在”判断首次启动，而不是“值是否为空”。
-            // 旧逻辑 activeIds 为空就回退默认值，导致用户把供应商全删光后重启又被全部加回来。
+            // 这里曾有个坑：只要 activeRaw 不是 null 就当成“用户的有效选择”，
+            // 但旧版本 removeProvider 会把空集合写成空串 ""，于是升级后读到 ""，
+            // 解析成空集合 —— 表现就是「默认的那几个供应商不见了，要手动添加才出现」。
+            // 现在区分三种情况：
+            //   null      -> 全新安装，用默认集合
+            //   ""        -> 历史版本写坏的空值，视为未初始化，回落默认集合
+            //   "a,b,c"   -> 用户真实选择（即使只有 1 个也尊重）
             val activeRaw = prefs[ACTIVE]
+            val parsedActive = activeRaw
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotBlank() }
+                ?.toSet()
+                .orEmpty()
+            val effectiveActive = if (parsedActive.isEmpty() && (activeRaw == null || activeRaw.isBlank())) {
+                ProviderCatalog.defaultActiveIds
+            } else {
+                parsedActive
+            }
             LookupSettings(
-                activeIds = if (activeRaw == null) ProviderCatalog.defaultActiveIds
-                else activeRaw.split(',').filter { it.isNotBlank() }.toSet(),
+                activeIds = effectiveActive,
                 keys = decodeMap(prefs[KEYS]),
                 emails = decodeMap(prefs[EMAILS]),
                 timeoutMs = prefs[TIMEOUT] ?: LookupSettings.DEFAULT_TIMEOUT_MS,

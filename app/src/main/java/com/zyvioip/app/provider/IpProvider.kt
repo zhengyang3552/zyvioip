@@ -83,6 +83,15 @@ object ProviderCatalog {
             note = "完全免密钥：地理位置 + ASN，无限流门槛。",
         ),
         ProviderSpec(
+            id = "ippure",
+            name = "IPPure",
+            auth = ProviderAuth.NONE,
+            defaultActive = true,
+            scorable = true,
+            signalKind = ProviderSignalKind.PURITY,
+            note = "免密钥：风险系数 + 是否原生/住宅 IP + ASN。注意只能查本机 IP。",
+        ),
+        ProviderSpec(
             id = "ipdatafree",
             name = "ipdata.co",
             auth = ProviderAuth.API_KEY,
@@ -194,6 +203,7 @@ object ProviderCatalog {
         "ipapicom" -> IpApiComProvider(spec, config)
         "ipdatafree" -> IpdataFreeProvider(spec, config)
         "ipwhois" -> IpWhoIsProvider(spec, config)
+        "ippure" -> IpPureProvider(spec, config)
         "ipapisanon" -> IpapiIsAnonProvider(spec, config)
         "ipapisis" -> IpapiIsProvider(spec, config)
         "abuseipdb" -> AbuseIpdbProvider(spec, config)

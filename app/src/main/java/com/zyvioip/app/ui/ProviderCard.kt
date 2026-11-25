@@ -46,6 +46,7 @@ fun ProviderCard(
     val status = result?.status ?: ProviderStatus.PENDING
     val statusText = when (status) {
         ProviderStatus.PENDING -> "等待中"
+        ProviderStatus.SKIPPED -> "已跳过"
         ProviderStatus.LOADING -> "查询中"
         ProviderStatus.SUCCESS -> "成功"
         ProviderStatus.ERROR -> "失败"
@@ -55,6 +56,7 @@ fun ProviderCard(
         ProviderStatus.SUCCESS -> Color(0xFF2E9E5B)
         ProviderStatus.ERROR -> Color(0xFFD64B4B)
         ProviderStatus.NEEDS_CONFIG -> Color(0xFFD08A1E)
+        ProviderStatus.SKIPPED -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Card(
@@ -73,15 +75,24 @@ fun ProviderCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                result?.purity?.let { purity ->
+                // 显示“风险 N”而不是“纯度 N”：各家接口给的本来就是风险/欺诈分，
+                // 直接展示原始语义，避免用户反向理解。
+                result?.riskScore?.let { risk ->
                     AssistChip(
                         onClick = {},
                         enabled = false,
-                        label = { Text("纯度 $purity") },
+                        label = { Text("风险 $risk") },
                         colors = AssistChipDefaults.assistChipColors(
-                            disabledLabelColor = purityColor(purity),
-                            disabledContainerColor = purityColor(purity).copy(alpha = 0.12f),
+                            disabledLabelColor = purityColor(100 - risk),
+                            disabledContainerColor = purityColor(100 - risk).copy(alpha = 0.12f),
                         ),
+                    )
+                }
+                result?.isResidential?.let { residential ->
+                    AssistChip(
+                        onClick = {},
+                        enabled = false,
+                        label = { Text(if (residential) "住宅/原生" else "非住宅") },
                     )
                 }
                 result?.flags?.forEach { flag ->
@@ -111,7 +122,7 @@ internal fun flagLabel(flag: String): String = when (flag) {
     ProviderFlag.VPN -> "VPN"
     ProviderFlag.PROXY -> "代理"
     ProviderFlag.TOR -> "Tor"
-    ProviderFlag.DATACENTER -> "数据中心"
+    ProviderFlag.DATACENTER -> "机房"
     ProviderFlag.ABUSER -> "滥用"
     ProviderFlag.MOBILE -> "移动网络"
     else -> flag

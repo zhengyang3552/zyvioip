@@ -12,6 +12,12 @@ data class ProviderOutcome(
     val company: String? = null,
     val asn: String? = null,
     val purity: Int? = null,
+    /** 该源给出的原始风险分（0-100，越大越危险）；null = 该源不提供评分 */
+    val riskScore: Int? = null,
+    /** 是否原生/住宅 IP */
+    val isResidential: Boolean? = null,
+    /** 是否广播/保留地址 */
+    val isBroadcast: Boolean? = null,
     val flags: Set<String> = emptySet(),
     val latencyMs: Long = 0,
     val message: String? = null,

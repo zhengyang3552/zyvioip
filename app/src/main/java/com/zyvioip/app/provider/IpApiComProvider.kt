@@ -13,7 +13,9 @@ class IpApiComProvider(
             okhttp3.HttpUrl.Builder().scheme("http").host("ip-api.com").apply {
                 addPathSegment("json")
                 addPathSegment(ip)
-                addQueryParameter("fields", "status,message,country,countryCode,regionName,city,isp,as,proxy,hosting,mobile,query")
+                // org 是真正的运营方，isp 往往只是线路商（例如 RackNerd 的 isp 显示 HostPapa），
+                // asname 能给出 AS 名称，这几个都取回来展示更准确。
+                addQueryParameter("fields", "status,message,country,countryCode,regionName,city,isp,org,as,asname,proxy,hosting,mobile,query")
             }.build()
         )
         .get()
@@ -36,7 +38,8 @@ class IpApiComProvider(
             countryCode = textField(map, "countryCode"),
             city = textField(map, "city"),
             region = textField(map, "regionName"),
-            company = textField(map, "isp"),
+            // 优先 org（真实运营方），没有再用 isp
+            company = textField(map, "org") ?: textField(map, "isp"),
             asn = textField(map, "as"),
             flags = flags,
         )

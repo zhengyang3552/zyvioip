@@ -8,7 +8,6 @@ import com.zyvioip.app.provider.ProviderOutcome
 import com.zyvioip.app.provider.ProviderStatus
 import com.zyvioip.app.ui.HomeRepositoryApi
 import com.zyvioip.app.ui.HomeSettings
-import com.zyvioip.app.util.averagePurity
 import com.zyvioip.app.util.classifyIpType
 import com.zyvioip.app.util.isValidIp
 import kotlinx.coroutines.async
@@ -17,6 +16,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.roundToInt
 
 /** Coordinates local IP discovery, concurrent provider queries, TTL caching and aggregation. */
 class IpLookupRepository(
@@ -206,11 +206,20 @@ class IpLookupRepository(
         return try {
             val outcome = ProviderCatalog.create(spec, config).lookup(ip, settings.timeoutMs)
             if (outcome.status == ProviderStatus.SUCCESS) {
+                // 注意：cache 里必须把风险分/住宅属性一起存下，
+                // 否则命中缓存后这些字段会变成 null —— 表现为“第一次查有分，刷新一下就没了”。
                 cache.putProviderResult(key, com.zyvioip.app.model.ProviderResult(
                     providerId = providerId, status = com.zyvioip.app.model.ProviderStatus.SUCCESS,
                     signals = com.zyvioip.app.model.IpSignals(
-                        ip = outcome.ip, country = outcome.country, city = outcome.city,
-                        company = outcome.company, asn = outcome.asn, flags = outcome.flags,
+                        ip = outcome.ip, country = outcome.country, countryCode = outcome.countryCode,
+                        city = outcome.city, region = outcome.region,
+                        company = outcome.company, asn = outcome.asn,
+                        isResidential = outcome.isResidential,
+                        isBroadcast = outcome.isBroadcast,
+                        riskScores = outcome.riskScore?.let {
+                            mapOf((ProviderCatalog.byId(providerId)?.name ?: providerId) to it)
+                        }.orEmpty(),
+                        flags = outcome.flags,
                     ),
                     purity = outcome.purity, error = outcome.error,
                 ))
@@ -223,9 +232,15 @@ class IpLookupRepository(
 
     private fun rebuild(ip: String, results: List<ProviderOutcome>) {
         var signals = IpSignals(ip = ip)
-        val purities = mutableListOf<Int>()
+        val risks = mutableListOf<Int>()
         for (result in results) {
             if (result.status != ProviderStatus.SUCCESS) continue
+            val spec = ProviderCatalog.byId(result.providerId)
+            // 记录每家的原始风险分，UI 上能直接展示“哪家给了多少分”
+            val riskOfThis = result.riskScore ?: result.purity?.let { 100 - it }
+            val riskMap =
+                if (riskOfThis != null) mapOf((spec?.name ?: result.providerId) to riskOfThis) else emptyMap()
+
             signals = mergeSignals(
                 signals,
                 IpSignals(
@@ -242,12 +257,17 @@ class IpLookupRepository(
                     isDatacenter = result.flags.any { it.equals("datacenter", true) },
                     isAbuser = result.flags.any { it.equals("abuser", true) },
                     isMobile = result.flags.any { it.equals("mobile", true) },
+                    isResidential = result.isResidential,
+                    isBroadcast = result.isBroadcast,
+                    riskScores = riskMap,
                     flags = result.flags,
                 ),
             )
-            val spec = ProviderCatalog.byId(result.providerId)
-            if (spec?.scorable == true && result.purity != null) purities.add(result.purity)
+            // 只有“明确给出评分”的源才参与平均，避免没数据的源把分数稀释
+            if (spec?.scorable == true && riskOfThis != null) risks.add(riskOfThis)
         }
+        val avgRisk = if (risks.isEmpty()) null else (risks.sum().toDouble() / risks.size).roundToInt().coerceIn(0, 100)
+
         _aggregate.value = com.zyvioip.app.model.AggregatedResult(
             ip = ip,
             signals = signals,
@@ -273,7 +293,9 @@ class IpLookupRepository(
                     )
                 }
             },
-            purity = averagePurity(purities),
+            purity = avgRisk?.let { 100 - it },
+            riskScore = avgRisk,
+            scoredProviderCount = risks.size,
             type = classifyIpType(signals),
         )
     }
