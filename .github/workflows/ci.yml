@@ -27,8 +27,12 @@ env:
   ANDROID_COMPILE_SDK: '34'
   ANDROID_BUILD_TOOLS: '34.0.0'
   GRADLE_OPTS: >-
-    -Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+    -Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
     -Dkotlin.daemon.jvm.options=-Xmx1536m
+    -Dorg.gradle.internal.http.connectionTimeout=60000
+    -Dorg.gradle.internal.http.socketTimeout=60000
+    -Dorg.gradle.internal.repository.max.retries=8
+    -Dorg.gradle.internal.repository.initial.backoff=3000
 
 jobs:
   build:
