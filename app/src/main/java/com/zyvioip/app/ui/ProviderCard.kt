@@ -88,11 +88,18 @@ fun ProviderCard(
                         ),
                     )
                 }
-                result?.isResidential?.let { residential ->
+                // 优先显示更具体的来源判定（原生/广播/机房），其次是粗略的住宅标记
+                result?.origin?.let { origin ->
                     AssistChip(
                         onClick = {},
                         enabled = false,
-                        label = { Text(if (residential) "住宅/原生" else "非住宅") },
+                        label = { Text(origin.label, style = MaterialTheme.typography.labelSmall) },
+                    )
+                } ?: result?.isResidential?.let { residential ->
+                    AssistChip(
+                        onClick = {},
+                        enabled = false,
+                        label = { Text(if (residential) "住宅/原生" else "非住宅", style = MaterialTheme.typography.labelSmall) },
                     )
                 }
                 result?.flags?.forEach { flag ->

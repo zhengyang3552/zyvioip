@@ -59,6 +59,14 @@ class IpPureProvider(
             if (broadcast == true) add(ProviderFlag.ABUSER)
         }
 
+        // 来源属性判定（IPPure 是唯一同时给出 isResidential 与 isBroadcast 的免费源）
+        val origin = when {
+            broadcast == true -> com.zyvioip.app.model.IpOrigin.BROADCAST
+            residential == true -> com.zyvioip.app.model.IpOrigin.NATIVE
+            residential == false -> com.zyvioip.app.model.IpOrigin.DATACENTER
+            else -> null
+        }
+
         return result(
             status = ProviderStatus.SUCCESS,
             ip = returnedIp,
@@ -72,6 +80,7 @@ class IpPureProvider(
             purity = toPurity(fraudScore),
             isResidential = residential,
             isBroadcast = broadcast,
+            origin = origin,
             flags = flags,
             message = buildString {
                 append("风险分 ${fraudScore ?: "—"}")

@@ -42,6 +42,8 @@ data class ProviderSpec(
     val note: String = "",
     val configLabel: String = "",
     val signalKind: ProviderSignalKind = ProviderSignalKind.INFO,
+    /** 该源是否能判断「IP 来源属性」（住宅/原生/广播/机房） */
+    val providesOrigin: Boolean = false,
 )
 
 @Serializable
@@ -71,7 +73,8 @@ object ProviderCatalog {
             defaultActive = true,
             scorable = false,
             signalKind = ProviderSignalKind.FLAG,
-            note = "Free geolocation and proxy/hosting flags (HTTP, no key).",
+            providesOrigin = true,
+            note = "免费版提供地理、机房(hosting)与代理标记（明文 HTTP，无需 key）。",
         ),
         ProviderSpec(
             id = "ipwhois",
@@ -89,7 +92,8 @@ object ProviderCatalog {
             defaultActive = true,
             scorable = true,
             signalKind = ProviderSignalKind.PURITY,
-            note = "免密钥：风险系数 + 是否原生/住宅 IP + ASN。注意只能查本机 IP。",
+            providesOrigin = true,
+            note = "免密钥：风险系数 + 是否住宅/原生 IP + 广播判定 + ASN。注意只能查本机 IP。",
         ),
         ProviderSpec(
             id = "ipdatafree",

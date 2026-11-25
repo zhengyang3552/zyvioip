@@ -328,6 +328,16 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlag
             val place = listOfNotNull(result.signals.country, result.signals.city)
                 .joinToString(" · ")
                 .ifBlank { "位置未知" }
+            // 来源属性单独一行：住宅/原生/广播/机房
+            result.origin?.let { ov ->
+                Text(
+                    text = "来源：${ov.origin.label}（${ov.source}）· ${ov.origin.hint}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
                 text = "$place · ${result.typeLabel}",
                 style = MaterialTheme.typography.bodySmall,

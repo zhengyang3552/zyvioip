@@ -288,6 +288,18 @@ class IpLookupRepository(
         }
         val avgRisk = if (risks.isEmpty()) null else (risks.sum().toDouble() / risks.size).roundToInt().coerceIn(0, 100)
 
+        // 汇总“IP 来源”判定：只采纳真的给了结论的源
+        val verdicts = results
+            .filter { it.status == ProviderStatus.SUCCESS && it.origin != null }
+            .mapNotNull { r ->
+                r.origin?.let { o ->
+                    com.zyvioip.app.model.OriginVerdict(
+                        origin = o,
+                        source = ProviderCatalog.byId(r.providerId)?.name ?: r.providerId,
+                    )
+                }
+            }
+
         _aggregate.value = com.zyvioip.app.model.AggregatedResult(
             ip = ip,
             signals = signals,
@@ -317,6 +329,8 @@ class IpLookupRepository(
             riskScore = avgRisk,
             scoredProviderCount = risks.size,
             type = classifyIpType(signals),
+            origin = com.zyvioip.app.model.resolveOrigin(verdicts),
+            originVerdicts = verdicts,
         )
     }
 

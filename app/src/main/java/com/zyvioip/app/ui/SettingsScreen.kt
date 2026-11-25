@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.zyvioip.app.provider.ProviderCatalog
@@ -63,7 +62,14 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("显示密钥", modifier = Modifier.weight(1f))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("显示密钥明文")
+                Text(
+                    if (reveal) "当前：明文可见，注意旁人窥屏" else "当前：已用圆点遮挡",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Switch(checked = reveal, onCheckedChange = { reveal = it })
         }
         ProviderCatalog.all.filter { it.requiresKey || it.requiresEmail }.forEach { spec ->
@@ -85,8 +91,10 @@ fun SettingsScreen(
                             label = { Text("${spec.name} ${spec.configLabel.ifBlank { "API Key" }}") },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
-                            visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            visualTransformation = if (reveal) VisualTransformation.None else SecretMask,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = if (reveal) KeyboardType.Text else KeyboardType.Password,
+                            ),
                         )
                         Button(
                             onClick = { onConfigChange(spec.id, ProviderConfig(spec.id, key.trim(), email.trim())) },

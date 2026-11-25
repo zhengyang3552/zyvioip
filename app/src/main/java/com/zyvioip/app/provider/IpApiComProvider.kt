@@ -97,6 +97,14 @@ class IpApiComProvider(
             textField(map, "reverse")?.let { append(" · 反查 $it") }
         }
 
+        // ip-api.com 没有 isResidential，只能从 hosting/proxy/mobile 推断
+        val origin = when {
+            hostingOrIdc -> com.zyvioip.app.model.IpOrigin.DATACENTER
+            mobile -> com.zyvioip.app.model.IpOrigin.MOBILE
+            // 既非机房也非移动 -> 大致是普通宽带，但无法区分住宅与企业，标 UNKNOWN 更诚实
+            else -> null
+        }
+
         return result(
             status = ProviderStatus.SUCCESS,
             ip = textField(map, "query") ?: queriedIp,
@@ -110,6 +118,7 @@ class IpApiComProvider(
             flags = flags,
             // 没有 hosting/proxy 时视为住宅/非机房线路
             isResidential = !hostingOrIdc && !proxy,
+            origin = origin,
             message = verdict,
         )
     }

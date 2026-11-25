@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.zyvioip.app.provider.ProviderCatalog
@@ -53,8 +52,10 @@ fun ProviderConfigScreen(
                 label = { Text(spec.configLabel.ifBlank { "API Key" }) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = if (reveal) VisualTransformation.None else SecretMask,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = if (reveal) KeyboardType.Text else KeyboardType.Password,
+                ),
                 trailingIcon = {
                     OutlinedButton(onClick = { reveal = !reveal }) { Text(if (reveal) "隐藏" else "显示") }
                 },

@@ -18,6 +18,8 @@ data class ProviderOutcome(
     val isResidential: Boolean? = null,
     /** 是否广播/保留地址 */
     val isBroadcast: Boolean? = null,
+    /** 该源对“IP 来源属性”的判定（住宅/原生/广播/机房…），null = 该源没有能力判断 */
+    val origin: com.zyvioip.app.model.IpOrigin? = null,
     val flags: Set<String> = emptySet(),
     val latencyMs: Long = 0,
     val message: String? = null,

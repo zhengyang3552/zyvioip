@@ -23,6 +23,10 @@ data class AggregatedResult(
     /** 有多少个源真正参与了评分，UI 用来说明“这个分数由几个源算出” */
     val scoredProviderCount: Int = 0,
     val type: IpType = IpType.UNKNOWN,
+    /** IP 来源属性（住宅/原生/广播/机房…）及给出结论的来源 */
+    val origin: OriginVerdict? = null,
+    /** 所有源给出的来源判定明细，UI 可展示“谁说了什么” */
+    val originVerdicts: List<OriginVerdict> = emptyList(),
     val completedAtMillis: Long = System.currentTimeMillis(),
 )
 
