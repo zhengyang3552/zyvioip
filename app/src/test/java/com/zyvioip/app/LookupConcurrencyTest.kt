@@ -25,7 +25,7 @@ class LookupConcurrencyTest {
         // 默认启用三个供应商，且都不需要 key，会走真实网络。
         // 这里只验证状态机：最后写回的必须是“最新一次”查询的结果，
         // 即不允许旧查询把新查询的 LOADING/结果覆盖成旧值。
-        assertEquals(3, com.zyvioip.app.provider.ProviderCatalog.defaultActiveIds.size)
+        assertEquals(4, com.zyvioip.app.provider.ProviderCatalog.defaultActiveIds.size)
 
         // 不发真实请求：直接用一个非法的 IP 触发校验分支，确认不会污染状态
         val before = repo.providerStates.value

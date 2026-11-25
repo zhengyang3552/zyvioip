@@ -159,13 +159,16 @@ class ProviderParseTest {
         assertFalse(outcome.flags.contains(ProviderFlag.DATACENTER))
     }
 
-    @Test fun ipPure_rejectsOtherIpBecauseApiCannotQueryArbitraryAddresses() {
+    @Test fun ipPure_skipsOtherIpBecauseApiCannotQueryArbitraryAddresses() {
         val provider = IpPureProvider()
-        // 接口只会返回调用方 IP；若与目标不一致必须报错，不能把本机数据冒充成目标 IP
+        // 接口只会返回调用方 IP；若与目标不一致必须标记跳过，
+        // 绝不能把本机数据冒充成目标 IP 的结果。
         val body = """{"ip":"1.2.3.4","asn":1,"country":"United States","fraudScore":10,"isResidential":false}"""
         val outcome = provider.parseForTest(body, "8.8.8.8")
-        assertEquals(ProviderStatus.ERROR, outcome.status)
-        assertTrue(outcome.error!!.contains("只支持查询本机 IP"))
+        assertEquals(ProviderStatus.SKIPPED, outcome.status)
+        assertTrue(outcome.message!!.contains("只能查询本机 IP"))
+        // 跳过时不能输出任何评分，避免污染平均值
+        assertEquals(null, outcome.riskScore)
     }
 
     @Test fun ipApiCom_readsOrgInsteadOfIsp() {
