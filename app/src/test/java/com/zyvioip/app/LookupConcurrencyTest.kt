@@ -22,10 +22,16 @@ class LookupConcurrencyTest {
 
     @Test fun concurrentSearches_doNotOverwriteEachOther() = runTest {
         val repo = IpLookupRepository(cache = NoopCache())
-        // 默认启用三个供应商，且都不需要 key，会走真实网络。
-        // 这里只验证状态机：最后写回的必须是“最新一次”查询的结果，
-        // 即不允许旧查询把新查询的 LOADING/结果覆盖成旧值。
-        assertEquals(4, com.zyvioip.app.provider.ProviderCatalog.defaultActiveIds.size)
+        // 不写死数量：供应商会随版本增减，硬编码断言每次加源都会失败。
+        // 这里只关心“默认启用的源都可用”，具体数量由 ProviderCatalog 自己保证。
+        val defaultActive = com.zyvioip.app.provider.ProviderCatalog.defaultActiveIds
+        assertTrue("默认启用的源不应为空", defaultActive.isNotEmpty())
+        defaultActive.forEach { id ->
+            val spec = com.zyvioip.app.provider.ProviderCatalog.byId(id)
+            assertTrue("默认启用的 $id 必须存在于目录中", spec != null)
+            assertTrue("默认启用的 $id 不应要求 key", spec!!.requiresKey.not())
+            assertTrue("默认启用的 $id 不应要求邮箱", spec.requiresEmail.not())
+        }
 
         // 不发真实请求：直接用一个非法的 IP 触发校验分支，确认不会污染状态
         val before = repo.providerStates.value

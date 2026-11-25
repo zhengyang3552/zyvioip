@@ -107,9 +107,11 @@ class CoreLogicTest {
     }
 
     @Test fun catalog_providerCountAndDefaultActiveAreConsistent() {
+        // 数量断言是有意保留的：防止合并时误删 provider。
+        // 新增/移除源时请同步更新这里。
         assertEquals(15, ProviderCatalog.all.size)
         // GetIPIntel 强制要求联系邮箱（否则返回 -6），ipdata.co 无 key 必然 401，
-        // 两者都不再默认启用；默认启用的三个源全部免密钥。
+        // 两者都不再默认启用；默认启用的 6 个源全部免密钥。
         val expectedActive = setOf(
             "ipapicom", "ipwhois", "ippure", "ipapisanon", "iptoto", "proxycheck",
         )
