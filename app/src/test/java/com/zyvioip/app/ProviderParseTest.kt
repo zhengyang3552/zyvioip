@@ -175,8 +175,34 @@ class ProviderParseTest {
         val provider = com.zyvioip.app.provider.IpApiComProvider()
         val body = """{"status":"success","country":"United States","countryCode":"US","city":"Buffalo","isp":"HostPapa","org":"RackNerd LLC","as":"AS36352 HostPapa","hosting":true,"query":"1.2.3.4"}"""
         val outcome = provider.parseForTest(body, "1.2.3.4")
-        // org 才是真实运营方；isp 只是线路商
+        // org 才是真实运营方；isp 只是线路商（RackNerd 的 isp 显示 HostPapa）
         assertEquals("RackNerd LLC", outcome.company)
         assertTrue(outcome.flags.contains(ProviderFlag.DATACENTER))
+    }
+
+    @Test fun ipApiCom_asnIsNumberOnly() {
+        val provider = com.zyvioip.app.provider.IpApiComProvider()
+        val body = """{"status":"success","isp":"HostPapa","org":"RackNerd LLC","as":"AS36352 HostPapa","hosting":true,"query":"1.2.3.4"}"""
+        val outcome = provider.parseForTest(body, "1.2.3.4")
+        // 界面要显示 "AS36352"，不是 "AS36352 HostPapa"
+        assertEquals("AS36352", outcome.asn)
+    }
+
+    @Test fun ipApiCom_detectsIdcByOrganizationName() {
+        val provider = com.zyvioip.app.provider.IpApiComProvider()
+        // 真实案例：220.181.38.148，hosting 字段是 false，
+        // 但 org 明确写着 IDC —— 不能因此判成住宅 IP
+        val body = """{"status":"success","isp":"IDC, China Telecommunications Corporation","org":"","asname":"CHINANET-IDC-BJ-AP","hosting":false,"proxy":false,"query":"220.181.38.148"}"""
+        val outcome = provider.parseForTest(body, "220.181.38.148")
+        assertTrue("org 含 IDC 应判为机房", outcome.flags.contains(ProviderFlag.DATACENTER))
+        assertEquals(false, outcome.isResidential)
+    }
+
+    @Test fun ipApiCom_residentialLineIsNotDatacenter() {
+        val provider = com.zyvioip.app.provider.IpApiComProvider()
+        val body = """{"status":"success","isp":"China Telecom","org":"China Telecom","asname":"CHINANET-GD","hosting":false,"proxy":false,"query":"202.96.128.86"}"""
+        val outcome = provider.parseForTest(body, "202.96.128.86")
+        assertFalse(outcome.flags.contains(ProviderFlag.DATACENTER))
+        assertEquals(true, outcome.isResidential)
     }
 }

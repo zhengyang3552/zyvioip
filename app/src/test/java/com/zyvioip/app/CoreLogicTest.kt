@@ -69,6 +69,33 @@ class CoreLogicTest {
         assertEquals("PROXY", classifyIpType(IpSignals(flags = setOf("proxy"))).name)
     }
 
+    @Test fun classifier_prefersDatacenterOverProxy() {
+        // 8.8.8.8 这类 Google 机房 IP，ip-api.com 同时给 hosting=true 和 proxy=true。
+        // 若代理优先就会把“机房”误判成“代理”，所以机房必须排在代理之前。
+        assertEquals(
+            "DATACENTER",
+            classifyIpType(IpSignals(isDatacenter = true, isProxy = true)).name,
+        )
+        assertEquals(
+            "DATACENTER",
+            classifyIpType(IpSignals(flags = setOf("datacenter", "proxy"))).name,
+        )
+        // VPN 仍高于机房
+        assertEquals(
+            "VPN",
+            classifyIpType(IpSignals(isVpn = true, isDatacenter = true, isProxy = true)).name,
+        )
+    }
+
+    @Test fun classifier_residentialOnlyWhenNoRiskSignal() {
+        assertEquals("RESIDENTIAL", classifyIpType(IpSignals(isResidential = true)).name)
+        // 一旦有风险信号，住宅不成立
+        assertEquals(
+            "DATACENTER",
+            classifyIpType(IpSignals(isResidential = true, isDatacenter = true)).name,
+        )
+    }
+
     @Test fun flagEmoji_andFlagParsing() {
         assertEquals("\uD83C\uDDFA\uD83C\uDDF8", countryFlag("US"))
         assertEquals("\uD83C\uDDE8\uD83C\uDDF3", countryFlag("CN"))
