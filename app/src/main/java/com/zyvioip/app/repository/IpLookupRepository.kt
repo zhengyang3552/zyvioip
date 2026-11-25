@@ -16,6 +16,10 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.math.roundToInt
@@ -35,6 +39,16 @@ class IpLookupRepository(
     private val _homeSettings = MutableStateFlow(HomeSettings())
     /** 查询代际号：只有最新一次查询允许写回状态，避免启动查询与手动查询互相覆盖。 */
     @Volatile private var searchGeneration = 0L
+
+    /**
+     * 全局并发闸门，**必须跨查询共享**。
+     * 之前每次 search() 内部 new 一个 Semaphore(5)，启动查询与手动查询同时跑时
+     * 实际并发会翻倍（10 个），在移动网络上直接打满 DNS/TLS 队列导致集体超时。
+     */
+    private val requestGate = Semaphore(MAX_CONCURRENT_PROVIDERS)
+
+    /** 当前正在执行的查询任务，新一代查询开始时会取消它。 */
+    @Volatile private var activeSearchJob: Job? = null
     private var settings = LookupSettings()
     private var currentIp: String? = null
 
@@ -59,6 +73,8 @@ class IpLookupRepository(
         _providerStates.value = settings.activeIds.mapNotNull { id ->
             ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
         }
+        // 先把持久缓存一次性灌进内存，后续查询路径不再碰磁盘（详见 DataStoreCacheRepository.preload）
+        (cache as? DataStoreCacheRepository)?.preload()
         val cached = cache.getLocalIp(LOCAL_CACHE_KEY, LocalIpRepository.LOCAL_CACHE_TTL_MS)?.takeIf(::isValidIp)
         val detected = cached ?: localIpRepository.detect()
         if (detected != null) {
@@ -76,33 +92,45 @@ class IpLookupRepository(
             _error.value = "IP 格式不正确"
             return
         }
-        // 每次查询分配一个自增序号。启动时 initialize() 会自动 search 一次，
-        // 用户点“查询”可能马上再触发一次，两次并发跑完会互相覆盖 _providerStates，
-        // 先写完的那次可能把后一次的 LOADING/结果盖掉，看起来像“全部失败”。
-        // 这里只允许“最新一次”查询写回状态。
+        // 新一代查询开始：先取消上一次还没跑完的任务。
+        // 之前只靠 generation 丢弃结果，旧任务仍在后台跑完并占着网络，
+        // 于是出现「第一次查询失败、第二次就成功」——
+        // 第一次其实是在和新旧两批请求一起抢带宽/DNS。
         val generation = ++searchGeneration
+        activeSearchJob?.cancel()
+        activeSearchJob = currentCoroutineContext().job
+
         currentIp = cleanIp
         _error.value = null
         _loading.value = true
         val active = settings.activeIds.mapNotNull(ProviderCatalog::byId)
         _providerStates.value = active.map { ProviderOutcome(it.id, ProviderStatus.LOADING) }
+
         try {
-            // 限流：不要一次把 5+ 个请求全堆到移动网络上。
-            // 冷启动时 detect() 刚并发探测完 4 个 IP 端点，紧接着 5 个供应商再全部并发，
-            // 会出现 9 个并发请求同时抢 DNS/TLS —— 表现就是“全部超时失败”，
-            // 而用户稍后手动点查询（网络已预热）就正常。这里最多同时跑 3 个。
-            val semaphore = Semaphore(MAX_CONCURRENT_PROVIDERS)
             val results = coroutineScope {
                 active.map { spec ->
                     async {
-                        semaphore.withPermit { query(spec.id, cleanIp, bypassCache = false) }
+                        // 共享闸门：无论同时有几个查询在跑，全局并发都受控
+                        requestGate.withPermit { query(spec.id, cleanIp, bypassCache = false) }
                     }
                 }.awaitAll()
             }
-            if (generation != searchGeneration) return // 已经有更新的查询了，丢弃本次结果
+            // 期间若已有更新的查询，直接放弃本次结果（状态归新的那次管）
+            if (generation != searchGeneration) return
             _providerStates.value = results
             rebuild(cleanIp, results)
+        } catch (e: CancellationException) {
+            // 被新一代查询取消：如果此时没有更新的查询在跑（例如页面销毁），
+            // 必须把卡片从 LOADING 恢复成待命，否则界面会永远转圈。
+            if (generation == searchGeneration) {
+                _providerStates.value = _providerStates.value.map {
+                    if (it.status == ProviderStatus.LOADING) it.copy(status = ProviderStatus.PENDING) else it
+                }
+            }
+            throw e
         } finally {
+            // 只有最新一次查询才有权结束 loading，
+            // 否则旧查询被取消时会把新查询的 loading 状态提前清掉。
             if (generation == searchGeneration) _loading.value = false
         }
     }

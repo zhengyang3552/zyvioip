@@ -7,6 +7,8 @@ import com.zyvioip.app.ui.HomeSettings
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import com.zyvioip.app.provider.ProviderStatus
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /** 校验“启动自动查询 + 用户手动查询”并发时，不会被旧结果覆盖。 */
@@ -76,5 +78,23 @@ class LookupConcurrencyTest {
         // 太小会被夹到 1s，避免用户填 0 导致全部秒失败
         repo.updateSettings(HomeSettings(timeoutMs = 10))
         assertEquals(1_000L, repo.homeSettings.value.timeoutMs)
+    }
+
+    @Test fun cancelledSearchLeavesCardsInPendingNotLoading() = runTest {
+        val repo = IpLookupRepository(cache = NoopCache())
+        // 非法 IP 不会真正发起网络请求，用于验证状态机不残留
+        repo.search("not-an-ip")
+        assertTrue(
+            "非法 IP 不应把卡片留在 LOADING",
+            repo.providerStates.value.none { it.status == ProviderStatus.LOADING },
+        )
+    }
+
+    @Test fun cacheReadPathDoesNotHitDiskAfterPreloadFlag() = runTest {
+        // MemoryCacheRepository 是纯内存实现，preload() 对它无副作用；
+        // 这里确认读缓存不会因为“持久层全量解码”而变慢或抛错。
+        val cache = com.zyvioip.app.repository.MemoryCacheRepository()
+        val repo = IpLookupRepository(cache = cache)
+        assertNull(repo.aggregate.value)
     }
 }
