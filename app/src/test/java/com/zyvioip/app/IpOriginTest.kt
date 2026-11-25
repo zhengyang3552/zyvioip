@@ -61,11 +61,15 @@ class IpOriginTest {
         assertEquals(IpOrigin.BROADCAST, outcome.origin)
     }
 
-    @Test fun ipPure_nonResidentialIsDatacenter() {
+    @Test fun ipPure_nonResidentialAloneDoesNotClaimDatacenter() {
         val provider = IpPureProvider()
+        // isResidential=false 只说明“不是住宅”，企业专线等同样为 false，
+        // 因此不能单凭这一点断定是机房 —— 应与其它源交叉判断。
         val body = """{"ip":"1.2.3.4","asn":36352,"asOrganization":"RackNerd LLC","country":"United States","fraudScore":28,"isResidential":false,"isBroadcast":false}"""
         val outcome = provider.parseForTest(body, "1.2.3.4")
-        assertEquals(IpOrigin.DATACENTER, outcome.origin)
+        assertNull(outcome.origin)
+        // 但 isResidential 字段本身要如实保留，供 UI 判断
+        assertEquals(false, outcome.isResidential)
     }
 
     @Test fun ipApiCom_hostingMapsToDatacenter() {

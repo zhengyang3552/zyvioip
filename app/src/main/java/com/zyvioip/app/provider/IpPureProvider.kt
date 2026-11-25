@@ -59,11 +59,13 @@ class IpPureProvider(
             if (broadcast == true) add(ProviderFlag.ABUSER)
         }
 
-        // 来源属性判定（IPPure 是唯一同时给出 isResidential 与 isBroadcast 的免费源）
+        // 来源属性判定。
+        // 注意：isResidential=false 只代表“不是住宅线路”，**不等于机房**
+        // （企业专线、部分运营商段也会是 false）。这里只在 true 时给结论，
+        // false 不单独推出 DATACENTER，避免把普通宽带误标成机房。
         val origin = when {
             broadcast == true -> com.zyvioip.app.model.IpOrigin.BROADCAST
             residential == true -> com.zyvioip.app.model.IpOrigin.NATIVE
-            residential == false -> com.zyvioip.app.model.IpOrigin.DATACENTER
             else -> null
         }
 

@@ -86,6 +86,25 @@ object ProviderCatalog {
             note = "完全免密钥：地理位置 + ASN，无限流门槛。",
         ),
         ProviderSpec(
+            id = "iptoto",
+            name = "ipto.to",
+            auth = ProviderAuth.NONE,
+            defaultActive = true,
+            scorable = true,
+            signalKind = ProviderSignalKind.PURITY,
+            providesOrigin = true,
+            note = "免密钥：VPN/Tor/机房/住宅 属性 + 滥用分，1000 次/天。",
+        ),
+        ProviderSpec(
+            id = "proxycheck",
+            name = "proxycheck.io",
+            auth = ProviderAuth.NONE,
+            defaultActive = true,
+            scorable = true,
+            signalKind = ProviderSignalKind.PURITY,
+            note = "免密钥：代理/VPN/Tor 检测 + risk 分，库较厚，1000 次/天。",
+        ),
+        ProviderSpec(
             id = "ippure",
             name = "IPPure",
             auth = ProviderAuth.NONE,
@@ -208,6 +227,8 @@ object ProviderCatalog {
         "ipdatafree" -> IpdataFreeProvider(spec, config)
         "ipwhois" -> IpWhoIsProvider(spec, config)
         "ippure" -> IpPureProvider(spec, config)
+        "iptoto" -> IptoToProvider(spec, config)
+        "proxycheck" -> ProxyCheckProvider(spec, config)
         "ipapisanon" -> IpapiIsAnonProvider(spec, config)
         "ipapisis" -> IpapiIsProvider(spec, config)
         "abuseipdb" -> AbuseIpdbProvider(spec, config)

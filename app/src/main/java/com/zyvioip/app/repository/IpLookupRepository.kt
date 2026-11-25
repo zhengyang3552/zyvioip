@@ -340,6 +340,6 @@ class IpLookupRepository(
     private companion object {
         const val LOCAL_CACHE_KEY = "device"
         /** 同时进行的供应商请求上限，避免移动网络下并发过高集体超时。 */
-        const val MAX_CONCURRENT_PROVIDERS = 3
+        const val MAX_CONCURRENT_PROVIDERS = 5
     }
 }
