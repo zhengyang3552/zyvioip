@@ -58,6 +58,7 @@ fun HomeRoute(modifier: Modifier = Modifier) {
         onRetry = viewModel::retry,
         onRemove = viewModel::removeProvider,
         onClearCache = viewModel::clearCache,
+        onUseLocalIp = viewModel::useLocalIp,
         modifier = modifier,
     )
 }

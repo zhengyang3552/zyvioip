@@ -17,8 +17,7 @@ class HomeViewModel(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val _settings = MutableStateFlow(HomeSettings())
-    val settings: StateFlow<HomeSettings> = _settings.asStateFlow()
+    val settings: StateFlow<HomeSettings> = repository.homeSettings
 
     private val _configs = MutableStateFlow(emptyMap<String, ProviderConfig>())
     val configs: StateFlow<Map<String, ProviderConfig>> = _configs.asStateFlow()
@@ -36,8 +35,10 @@ class HomeViewModel(
 
     fun submit() {
         val value = _query.value.trim()
-        if (value.isEmpty()) return
-        viewModelScope.launch { runCatching { repository.search(value) } }
+        // 输入框为空时直接用本机 IP，比点了没反应友好；两者都没有才忽略。
+        val target = value.ifEmpty { repository.localIp.value.orEmpty() }
+        if (target.isEmpty()) return
+        viewModelScope.launch { runCatching { repository.search(target) } }
     }
 
     fun useLocalIp(ip: String) {
@@ -65,7 +66,6 @@ class HomeViewModel(
     }
 
     fun updateSettings(next: HomeSettings) {
-        _settings.value = next
         viewModelScope.launch { runCatching { repository.updateSettings(next) } }
     }
 

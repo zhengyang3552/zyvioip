@@ -32,6 +32,7 @@ class IpLookupRepository(
     private val _localIp = MutableStateFlow<String?>(null)
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
+    private val _homeSettings = MutableStateFlow(HomeSettings())
     private val mutex = Mutex()
     private var settings = LookupSettings()
     private var currentIp: String? = null
@@ -41,11 +42,20 @@ class IpLookupRepository(
     override val localIp: StateFlow<String?> = _localIp.asStateFlow()
     override val loading: StateFlow<Boolean> = _loading.asStateFlow()
     override val error: StateFlow<String?> = _error.asStateFlow()
+    override val homeSettings: StateFlow<HomeSettings> = _homeSettings.asStateFlow()
 
     override suspend fun initialize() {
         settings = settingsRepository?.load() ?: settings
+        // 把持久化的设置回填给 UI，否则设置页永远显示编译期默认值（改了开关回来又变回去）。
+        _homeSettings.value = HomeSettings(
+            timeoutMs = settings.timeoutMs,
+            cacheTtlMinutes = settings.cacheTtlMs / 60_000L,
+            autoLookup = settings.autoLookup,
+            showFlags = settings.showFlags,
+            notifications = settings.notifications,
+        )
         val cached = cache.getLocalIp(LOCAL_CACHE_KEY, LocalIpRepository.LOCAL_CACHE_TTL_MS)?.takeIf(::isValidIp)
-        val detected = cached ?: localIpRepository.detect(settings.timeoutMs)
+        val detected = cached ?: localIpRepository.detect()
         if (detected != null) {
             _localIp.value = detected
             if (cached != detected) cache.putLocalIp(LOCAL_CACHE_KEY, detected)
@@ -54,7 +64,8 @@ class IpLookupRepository(
         _providerStates.value = settings.activeIds.mapNotNull { id ->
             ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
         }
-        currentIp?.let { search(it) }
+        // 尊重“启动时自动查询本机 IP”开关：关掉时只显示本机 IP，不发任何请求。
+        if (settings.autoLookup) currentIp?.let { search(it) }
     }
 
     override suspend fun search(ip: String) {
@@ -101,6 +112,7 @@ class IpLookupRepository(
         settings = settings.copy(activeIds = settings.activeIds + providerId)
         settingsRepository?.save(settings)
         if (_providerStates.value.none { it.providerId == providerId }) {
+            // 撤销删除后要立刻重新查询，否则卡片会一直停在 PENDING 状态。
             val result = currentIp?.let { query(spec.id, it, bypassCache = false) }
                 ?: ProviderOutcome(spec.id, ProviderStatus.PENDING)
             _providerStates.value = _providerStates.value + result
@@ -126,16 +138,29 @@ class IpLookupRepository(
     override suspend fun clearCache() {
         cache.clear()
         _localIp.value = null
-        _aggregate.value = null
         _error.value = null
+        // 只清缓存，不要顺手把当前结果和本机 IP 也抹掉 ——
+        // 原来会把 aggregate 置空，用户点完“清除缓存”看到界面空白，会以为把供应商删了。
+        // 现在的行为：清完重新拉一次本机 IP 并刷新结果。
+        val detected = runCatching { localIpRepository.detect() }.getOrNull()
+        if (detected != null) {
+            _localIp.value = detected
+            cache.putLocalIp(LOCAL_CACHE_KEY, detected)
+            currentIp = detected
+            search(detected)
+        }
     }
 
     override suspend fun updateSettings(settings: HomeSettings) {
         this.settings = this.settings.copy(
             timeoutMs = settings.timeoutMs.coerceIn(1_000L, 60_000L),
-            cacheTtlMs = settings.cacheTtlMinutes * 60_000L,
+            cacheTtlMs = settings.cacheTtlMinutes.coerceAtLeast(0L) * 60_000L,
+            autoLookup = settings.autoLookup,
+            showFlags = settings.showFlags,
+            notifications = settings.notifications,
         )
         settingsRepository?.save(this.settings)
+        _homeSettings.value = settings
     }
 
     private suspend fun query(providerId: String, ip: String, bypassCache: Boolean): ProviderOutcome {

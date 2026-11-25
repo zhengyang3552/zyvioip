@@ -1,18 +1,21 @@
 package com.zyvioip.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -20,8 +23,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -37,8 +44,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -72,6 +79,7 @@ fun HomeScreen(
     onRetry: (String) -> Unit,
     onRemove: (String) -> Unit,
     onClearCache: () -> Unit,
+    onUseLocalIp: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val snackbar = remember { SnackbarHostState() }
@@ -101,6 +109,14 @@ fun HomeScreen(
                         }
                     }
                 },
+                actions = {
+                    // 设置入口只在首页显示；原来用的 android.R.drawable 系统图标在深色主题下几乎看不见。
+                    if (configProviderId == null && !settingsOpen && !pendingOpen) {
+                        IconButton(onClick = { onSettingsOpen(true) }) {
+                            Icon(Icons.Default.Settings, contentDescription = "设置")
+                        }
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
@@ -119,15 +135,13 @@ fun HomeScreen(
                 onSettingsChange = onSettingsChange,
                 onConfigChange = onSaveConfig,
                 onClearCache = onClearCache,
-                onBack = { onSettingsOpen(false) },
                 modifier = Modifier.padding(padding),
             )
             pendingOpen -> PendingProvidersScreen(
                 activeIds = activeIds,
-                results = providerStates.associateBy { it.providerId },
+                configs = configs,
                 onAdd = onAddProvider,
                 onConfigure = { onConfigure(it) },
-                onBack = { onPendingOpen(false) },
                 modifier = Modifier.padding(padding),
             )
             else -> HomeContent(
@@ -138,7 +152,8 @@ fun HomeScreen(
                 providerStates = providerStates,
                 localIp = localIp,
                 loading = loading,
-                onSettingsOpen = { onSettingsOpen(true) },
+                showFlags = settings.showFlags,
+                onUseLocalIp = onUseLocalIp,
                 onPendingOpen = { onPendingOpen(true) },
                 onRetry = onRetry,
                 onRemove = { id ->
@@ -166,71 +181,137 @@ private fun HomeContent(
     providerStates: List<ProviderOutcome>,
     localIp: String?,
     loading: Boolean,
-    onSettingsOpen: () -> Unit,
+    showFlags: Boolean,
+    onUseLocalIp: (String) -> Unit,
     onPendingOpen: () -> Unit,
     onRetry: (String) -> Unit,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 label = { Text("IP 地址") },
-                placeholder = { Text(localIp ?: "输入 IPv4 / IPv6 地址") },
+                placeholder = { Text("输入 IPv4 / IPv6 地址") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "清空")
+                        }
+                    }
+                },
             )
-            IconButton(onClick = onSettingsOpen) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_manage),
-                    contentDescription = "设置",
-                    modifier = Modifier.size(24.dp),
+            Button(onClick = onSubmit, enabled = !loading) { Text("查询") }
+        }
+
+        // 本机公网 IP：原来只当 placeholder，用户很难主动复用，这里做成可点击的胶囊。
+        localIp?.let { ip ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = { onUseLocalIp(ip) },
+                    label = { Text("本机 IP：$ip", maxLines = 1) },
                 )
+                Text("点击直接查询", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+
         if (loading) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 Text("正在查询…", style = MaterialTheme.typography.labelMedium)
             }
         }
-        aggregate?.let { SummaryCard(it) }
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(providerStates, key = { it.providerId }) { state ->
-                ProviderDismissItem(state, onRetry = onRetry, onRemove = onRemove)
+
+        aggregate?.let { SummaryCard(it, showFlags = showFlags) }
+
+        if (providerStates.isNotEmpty()) {
+            RemoveHint()
+        }
+
+        if (providerStates.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    "还没有启用任何供应商\n点下方按钮添加",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 8.dp),
+            ) {
+                items(providerStates, key = { it.providerId }) { state ->
+                    ProviderDismissItem(state, onRetry = onRetry, onRemove = onRemove)
+                }
             }
         }
-        Button(onClick = onPendingOpen, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) { Text("添加供应商") }
+
+        // 原来这里是个占满宽度的实心主按钮，视觉上比“查询”还重，喧宾夺主。
+        // 改成弱化的描边按钮，并固定在底部安全区之上。
+        OutlinedButton(
+            onClick = onPendingOpen,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("添加供应商")
+        }
     }
 }
 
 @Composable
-private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult) {
+private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlags: Boolean) {
     val color = purityColor(result.purity)
+    val succeeded = result.providerStates.count { it.outcome.succeeded }
+    val failed = result.providerStates.count {
+        it.outcome.status == com.zyvioip.app.provider.ProviderStatus.ERROR ||
+            it.outcome.status == com.zyvioip.app.provider.ProviderStatus.NEEDS_CONFIG
+    }
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(countryFlagFromCode(result.countryCode), style = MaterialTheme.typography.headlineSmall)
+                Text(countryFlagFromCode(result.signals.countryCode), style = MaterialTheme.typography.headlineSmall)
                 Text(result.ip, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    text = result.purity?.let { "$it" } ?: "--",
-                    color = color,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                )
+                Spacer(Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = result.purity?.toString() ?: "--",
+                        color = color,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text("纯净度", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             val place = listOfNotNull(result.signals.country, result.signals.city).joinToString(" · ").ifBlank { "位置未知" }
             Text(place, style = MaterialTheme.typography.bodyMedium)
             Text("类型：${result.typeLabel}", style = MaterialTheme.typography.labelMedium)
+
+            // 让用户知道这个分数是几个源算出来的，失败几个。
+            Text(
+                "成功 $succeeded 个来源" + if (failed > 0) "，$failed 个未成功" else "",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             if (result.purity == null) {
                 Text("暂无可评分结果：检查供应商失败 / 信息源 / 未配置", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
-            if (result.flags.isNotEmpty()) {
+            // 尊重“显示风险标记”开关。
+            if (showFlags && result.flags.isNotEmpty()) {
                 Text("标记：${result.flags.joinToString("、") { flagLabel(it) }}", style = MaterialTheme.typography.labelMedium, color = color)
             }
         }

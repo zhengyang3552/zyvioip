@@ -12,6 +12,8 @@ interface HomeRepositoryApi {
     val localIp: StateFlow<String?>
     val loading: StateFlow<Boolean>
     val error: StateFlow<String?>
+    /** 持久化后的设置，UI 直接订阅，避免自己维护一份不同步的副本。 */
+    val homeSettings: StateFlow<HomeSettings>
 
     suspend fun initialize()
     suspend fun search(ip: String)

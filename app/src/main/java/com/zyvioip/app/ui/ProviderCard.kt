@@ -92,7 +92,8 @@ fun ProviderCard(
                 }
             }
             val detail = when {
-                status == ProviderStatus.NEEDS_CONFIG -> "请在“添加供应商”中完成 ${spec.configLabel.ifBlank { "密钥" }} 配置"
+                // 这个供应商已经在列表里了，不该让用户去“添加供应商”里找它。
+                status == ProviderStatus.NEEDS_CONFIG -> "尚未配置 ${spec.configLabel.ifBlank { "密钥" }}，点击右上角重试或到设置中填写"
                 status == ProviderStatus.ERROR -> result?.error ?: "查询失败"
                 status == ProviderStatus.SUCCESS -> listOfNotNull(
                     result?.country, result?.city, result?.company, result?.asn,

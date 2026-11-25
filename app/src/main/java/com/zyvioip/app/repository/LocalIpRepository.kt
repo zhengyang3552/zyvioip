@@ -23,7 +23,7 @@ class LocalIpRepository(
         const val LOCAL_CACHE_TTL_MS = 8 * 60 * 1000L
     }
 
-    suspend fun detect(timeoutMs: Long = 5_000L): String? = withContext(Dispatchers.IO) {
+    suspend fun detect(): String? = withContext(Dispatchers.IO) {
         for (url in endpoints) {
             val ip = try {
                 val response = client.newCall(Request.Builder().url(url).build()).execute()

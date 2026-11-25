@@ -26,6 +26,10 @@ permissions:
 env:
   ANDROID_COMPILE_SDK: '34'
   ANDROID_BUILD_TOOLS: '34.0.0'
+  # 版本号注入：debug / release 读到同一组值，versionCode 随 run_number 单调递增。
+  BUILD_NUMBER: ${{ github.run_number }}
+  # 只有 tag 构建用 tag 名当 versionName（v1.0.3 -> 1.0.3）
+  VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
   GRADLE_OPTS: >-
     -Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
     -Dkotlin.daemon.jvm.options=-Xmx1536m
@@ -70,6 +74,25 @@ jobs:
           else
             echo "sdkmanager not found; using preinstalled SDK"
           fi
+
+      - name: 还原固定签名 keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::未配置 KEYSTORE_BASE64，Debug 包将使用随机调试签名（无法覆盖安装正式版）"
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > app/release.keystore
+          {
+            echo "KEYSTORE_PATH=app/release.keystore"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: 单元测试
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
@@ -206,21 +229,62 @@ jobs:
       - name: 构建 Release APK
         run: ./gradlew --no-daemon --stacktrace assembleRelease
 
-      - name: 校验签名指纹
+      # 关键校验：必须同时通过 v1 / v2 / v3。
+      # 历史上这个项目只签了 v2，MIUI/HyperOS、ColorOS 等国产 ROM 的安装器会读 v1 签名，
+      # 结果报“解析软件包时出现问题 / 无效的安装包”。这里把校验做成硬失败，
+      # 以后再出现只有 v2 的产物，CI 直接挂掉，不会把坏包发出去。
+      - name: 校验签名方案与指纹
         run: |
           set -euo pipefail
-          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
+          test -n "$APK" || { echo "::error::未找到 Release APK"; exit 1; }
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -1)
-          "$APKSIGNER" verify --print-certs "$APK" > certs.txt
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > certs.txt
+          cat certs.txt
+
+          V1=$(grep -c "Verified using v1 scheme (JAR signing): true" certs.txt || true)
+          V2=$(grep -c "Verified using v2 scheme (APK Signature Scheme v2): true" certs.txt || true)
+          V3=$(grep -c "Verified using v3 scheme (APK Signature Scheme v3): true" certs.txt || true)
+          if [ "$V1" -lt 1 ] || [ "$V2" -lt 1 ]; then
+            echo "::error::签名方案不完整（需要 v1+v2，实际 v1=$V1 v2=$V2），这类包在国产 ROM 上会安装失败"
+            exit 1
+          fi
+          if [ "$V3" -lt 1 ]; then
+            echo "::warning::缺少 v3 签名方案（Android 9+ 推荐），建议检查 enableV3Signing"
+          fi
+
           SHA256=$(grep -oE 'SHA-256 digest: .*' certs.txt | head -1 | cut -d' ' -f3-)
-          echo "SHA-256: $SHA256" >> "$GITHUB_STEP_SUMMARY"
+          EXPECTED="52c76737d22aa3e7f2bf1ac98e9fdb5fd4776034612264e683213c44d270a1b4"
+          ACTUAL=$(echo "$SHA256" | tr -d ':' | tr 'A-Z' 'a-z')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::签名指纹不匹配！期望 $EXPECTED，实际 $ACTUAL（Secrets 里的 keystore 可能不对）"
+            exit 1
+          fi
+          {
+            echo "### 签名校验"
+            echo '```'
+            echo "v1 (JAR)  : OK"
+            echo "v2        : OK"
+            echo "v3        : $( [ "$V3" -ge 1 ] && echo OK || echo 缺失 )"
+            echo "SHA-256   : $SHA256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 用 zipalign 复核对齐，避免“能装但启动即崩”的隐性问题
+      - name: 校验 APK 对齐
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort | tail -1)
+          "$ZIPALIGN" -c -v 4 "$APK" > /dev/null && echo "zipalign 4-byte 对齐通过"
 
       - name: 重命名 APK 并创建 Release
         run: |
+          set -euo pipefail
           mkdir -p dist
-          for f in app/build/outputs/apk/release/*.apk; do
-            mv "$f" "dist/zyvioip-${GITHUB_REF_NAME}-release.apk"
-          done
+          APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
+          cp "$APK" "dist/zyvioip-${GITHUB_REF_NAME}-release.apk"
+          cp "$APK" "dist/zyvioip-latest.apk"
           ls -lh dist/
 
       - name: 创建 GitHub Release

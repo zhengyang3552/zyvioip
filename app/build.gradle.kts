@@ -12,8 +12,13 @@ android {
         applicationId = "com.zyvioip.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.0.2"
+        // versionCode 由 CI 注入（BUILD_NUMBER），保证单调递增、不会因降级装不上；
+        // 本地构建回退到基础值，仅供调试。
+        val ciBuild = (System.getenv("BUILD_NUMBER") ?: "").trim()
+        versionCode = if (ciBuild.matches(Regex("\\d+"))) 100 + ciBuild.toInt() else 100
+        // versionName：tag 构建用 tag 名（v1.0.3 -> 1.0.3），其余回退到下面的默认值。
+        val ciName = (System.getenv("VERSION_NAME") ?: "").trim().removePrefix("v")
+        versionName = ciName.ifBlank { "1.0.3" }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -24,26 +29,37 @@ android {
             val ksPassword = System.getenv("KEYSTORE_PASSWORD")
             val keyAliasName = System.getenv("KEY_ALIAS")
             val keyPassword = System.getenv("KEY_PASSWORD")
+            // 没有注入密钥时（本地直接构建），不要建立“半个”签名配置，
+            // 否则后面的 signingConfig 赋值会让构建直接失败。
             if (!ksPath.isNullOrBlank() && !ksPassword.isNullOrBlank() &&
                 !keyAliasName.isNullOrBlank() && !keyPassword.isNullOrBlank()) {
                 storeFile = rootProject.file(ksPath)
                 storePassword = ksPassword
                 keyAlias = keyAliasName
                 this.keyPassword = keyPassword
+                // 三种签名方案全开。AGP 在 minSdk >= 24 时默认只签 v2，
+                // 而 MIUI/HyperOS、ColorOS 等国产 ROM 的包安装器仍会读 v1（JAR）签名做预校验，
+                // 只有 v2 的包会被判成“解析软件包时出现问题 / 无效的安装包”。
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
 
+    // KEYSTORE_PATH 存在时才算签名可用
+    val hasReleaseSigning = !System.getenv("KEYSTORE_PATH").isNullOrBlank()
+
     buildTypes {
+        // debug / release 共用同一个固定签名，两者可互相覆盖安装，也不会出现签名冲突。
+        // 未注入密钥时保持 AGP 默认（debug 用调试签名、release 不签名），本地构建不受影响。
         getByName("debug") {
-            val ksPath = System.getenv("KEYSTORE_PATH")
-            if (!ksPath.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
         getByName("release") {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            val ksPath = System.getenv("KEYSTORE_PATH")
-            if (!ksPath.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
         }
     }
 

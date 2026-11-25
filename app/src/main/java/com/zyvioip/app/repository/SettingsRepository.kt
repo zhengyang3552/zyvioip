@@ -23,6 +23,9 @@ data class LookupSettings(
     val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     val cacheTtlMs: Long = DEFAULT_CACHE_TTL_MS,
     val useEnabledAsDenominator: Boolean = false,
+    val autoLookup: Boolean = true,
+    val showFlags: Boolean = true,
+    val notifications: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_TIMEOUT_MS = 8_000L
@@ -37,14 +40,20 @@ class SettingsRepository(context: Context) {
     suspend fun load(): LookupSettings = store.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { prefs ->
+            // 用“键是否存在”判断首次启动，而不是“值是否为空”。
+            // 旧逻辑 activeIds 为空就回退默认值，导致用户把供应商全删光后重启又被全部加回来。
+            val activeRaw = prefs[ACTIVE]
             LookupSettings(
-                activeIds = prefs[ACTIVE]?.split(',').orEmpty().filter { it.isNotBlank() }.toSet()
-                    .ifEmpty { ProviderCatalog.defaultActiveIds },
+                activeIds = if (activeRaw == null) ProviderCatalog.defaultActiveIds
+                else activeRaw.split(',').filter { it.isNotBlank() }.toSet(),
                 keys = decodeMap(prefs[KEYS]),
                 emails = decodeMap(prefs[EMAILS]),
                 timeoutMs = prefs[TIMEOUT] ?: LookupSettings.DEFAULT_TIMEOUT_MS,
                 cacheTtlMs = prefs[TTL] ?: LookupSettings.DEFAULT_CACHE_TTL_MS,
                 useEnabledAsDenominator = prefs[DENOMINATOR] ?: false,
+                autoLookup = prefs[AUTO_LOOKUP] ?: true,
+                showFlags = prefs[SHOW_FLAGS] ?: true,
+                notifications = prefs[NOTIFICATIONS] ?: false,
             )
         }.first()
 
@@ -55,6 +64,9 @@ class SettingsRepository(context: Context) {
         prefs[TIMEOUT] = settings.timeoutMs
         prefs[TTL] = settings.cacheTtlMs
         prefs[DENOMINATOR] = settings.useEnabledAsDenominator
+        prefs[AUTO_LOOKUP] = settings.autoLookup
+        prefs[SHOW_FLAGS] = settings.showFlags
+        prefs[NOTIFICATIONS] = settings.notifications
     }
 
     private fun encodeMap(map: Map<String, String>): String = buildString {
@@ -90,5 +102,8 @@ class SettingsRepository(context: Context) {
         private val TIMEOUT = longPreferencesKey("timeout_ms")
         private val TTL = longPreferencesKey("cache_ttl_ms")
         private val DENOMINATOR = booleanPreferencesKey("enabled_denominator")
+        private val AUTO_LOOKUP = booleanPreferencesKey("auto_lookup")
+        private val SHOW_FLAGS = booleanPreferencesKey("show_flags")
+        private val NOTIFICATIONS = booleanPreferencesKey("notifications")
     }
 }

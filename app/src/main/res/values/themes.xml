@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.ZyvioIp" parent="android:Theme.Material.Light.NoActionBar" />
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      原来继承 android:Theme.Material.Light.NoActionBar（框架主题）：
+        * 深色模式下启动瞬间闪白；
+        * 与 Compose Material3 无关。
+      改用框架 Material.NoActionBar 作为基底，深浅色由 values / values-night 两套资源分别覆盖。
+    -->
+    <style name="Theme.ZyvioIp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

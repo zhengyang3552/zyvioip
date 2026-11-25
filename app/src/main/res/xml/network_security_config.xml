@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 默认禁止明文，强制 https -->
+    <base-config cleartextTrafficPermitted="false" />
+    <!-- ip-api.com 免费版只有 http 端点，单独放行 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">ip-api.com</domain>
+    </domain-config>
+</network-security-config>

@@ -75,6 +75,9 @@ abstract class IpProvider(
 
     protected abstract fun parse(body: String, queriedIp: String): ProviderOutcome
 
+    /** 仅供 JVM 单测验证解析逻辑，不发起网络请求。 */
+    internal fun parseForTest(body: String, ip: String): ProviderOutcome = parse(body, ip)
+
     protected fun result(
         status: ProviderStatus,
         ip: String? = null,

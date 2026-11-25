@@ -27,7 +27,12 @@ class AbuseIpdbProvider(
         val flags = buildSet {
             if ((score?.toInt() ?: 0) >= 50) add(ProviderFlag.ABUSER)
             if (boolField(data, "isTor") == true) add(ProviderFlag.TOR)
-            if (boolField(data, "isp") == false) add(ProviderFlag.DATACENTER)
+            // usageType 才是 AbuseIPDB 判断机房用的字段（"Data Center/Web Hosting/Transit"）。
+            // 原来误把 isp 当布尔量判断，永远得不到结果，数据中心标记从来没生效过。
+            val usage = textField(data, "usageType").orEmpty().lowercase()
+            if (usage.contains("data center") || usage.contains("hosting") || usage.contains("transit")) {
+                add(ProviderFlag.DATACENTER)
+            }
         }
         return result(
             status = if (score != null) ProviderStatus.SUCCESS else ProviderStatus.ERROR,
