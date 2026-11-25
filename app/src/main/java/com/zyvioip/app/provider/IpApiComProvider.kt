@@ -55,13 +55,6 @@ class IpApiComProvider(
         val proxy = boolField(map, "proxy") == true
         val mobile = boolField(map, "mobile") == true
 
-        val hostingOrIdc = hosting || looksLikeHosting
-        val flags = buildSet {
-            if (proxy) add(ProviderFlag.PROXY)
-            if (hostingOrIdc) add(ProviderFlag.DATACENTER)
-            if (mobile) add(ProviderFlag.MOBILE)
-        }
-
         val isp = textField(map, "isp")
         val org = textField(map, "org")
 
@@ -77,6 +70,13 @@ class IpApiComProvider(
             "hosting", "data center", "datacenter", "idc", "colocation", "colo",
             "cloud", "vps", "server", "dedicated", "机房",
         ).any { orgText.contains(it) }
+
+        val hostingOrIdc = hosting || looksLikeHosting
+        val flags = buildSet {
+            if (proxy) add(ProviderFlag.PROXY)
+            if (hostingOrIdc) add(ProviderFlag.DATACENTER)
+            if (mobile) add(ProviderFlag.MOBILE)
+        }
         // "AS36352 HostPapa" -> "AS36352"
         val asRaw = textField(map, "as")
         val asnNumber = asRaw?.trim()?.split(' ')?.firstOrNull()?.takeIf {
