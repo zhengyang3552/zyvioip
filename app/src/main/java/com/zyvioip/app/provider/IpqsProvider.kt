@@ -19,7 +19,7 @@ class IpqsProvider(
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
+        val map = parseObject(json, body)
         if (boolField(map, "success") == false) {
             return result(ProviderStatus.ERROR, error = textField(map, "message") ?: "服务拒绝请求")
         }

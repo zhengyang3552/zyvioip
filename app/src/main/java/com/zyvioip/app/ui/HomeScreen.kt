@@ -17,8 +17,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,11 +27,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -86,7 +85,24 @@ fun HomeScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text("ZyvioIP") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("ZyvioIP") },
+                navigationIcon = {
+                    when {
+                        configProviderId != null -> IconButton(onClick = { onConfigure(null) }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                        settingsOpen -> IconButton(onClick = { onSettingsOpen(false) }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                        pendingOpen -> IconButton(onClick = { onPendingOpen(false) }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         when {
@@ -211,6 +227,9 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult) {
             val place = listOfNotNull(result.signals.country, result.signals.city).joinToString(" · ").ifBlank { "位置未知" }
             Text(place, style = MaterialTheme.typography.bodyMedium)
             Text("类型：${result.typeLabel}", style = MaterialTheme.typography.labelMedium)
+            if (result.purity == null) {
+                Text("暂无可评分结果：检查供应商失败 / 信息源 / 未配置", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
             if (result.flags.isNotEmpty()) {
                 Text("标记：${result.flags.joinToString("、") { flagLabel(it) }}", style = MaterialTheme.typography.labelMedium, color = color)
             }
@@ -225,37 +244,5 @@ internal fun countryFlagFromCode(code: String?): String {
     return buildString {
         append(Character.toChars(0x1F1E6 + (upper[0] - 'A')))
         append(Character.toChars(0x1F1E6 + (upper[1] - 'A')))
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProviderDismissItem(
-    state: ProviderOutcome,
-    onRetry: (String) -> Unit,
-    onRemove: (String) -> Unit,
-) {
-    val spec = ProviderCatalog.byId(state.providerId) ?: return
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onRemove(state.providerId)
-                true
-            } else false
-        },
-        positionalThreshold = { it * 0.35f },
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.CenterEnd) {
-                    Text("删除", color = MaterialTheme.colorScheme.onErrorContainer)
-                }
-            }
-        },
-        enableDismissFromStartToEnd = false,
-    ) {
-        ProviderCard(spec = spec, result = state, onRetry = onRetry)
     }
 }

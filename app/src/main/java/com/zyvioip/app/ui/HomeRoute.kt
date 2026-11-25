@@ -1,7 +1,7 @@
 package com.zyvioip.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +29,11 @@ fun HomeRoute(modifier: Modifier = Modifier) {
     var settingsOpen by remember { mutableStateOf(false) }
     var pendingOpen by remember { mutableStateOf(false) }
     var configProviderId by remember { mutableStateOf<String?>(null) }
+
+    // System back should navigate back one settings level, never finish the Activity from a subpage.
+    BackHandler(enabled = configProviderId != null) { configProviderId = null }
+    BackHandler(enabled = configProviderId == null && pendingOpen) { pendingOpen = false }
+    BackHandler(enabled = configProviderId == null && !pendingOpen && settingsOpen) { settingsOpen = false }
 
     HomeScreen(
         query = query,
@@ -60,5 +65,7 @@ fun HomeRoute(modifier: Modifier = Modifier) {
 /** Small local Scaffold wrapper kept for previews and host screens. */
 @Composable
 fun HomeScreenHost(content: @Composable () -> Unit) {
-    Scaffold { padding -> androidx.compose.foundation.layout.Box(Modifier.padding(padding)) { content() } }
+    androidx.compose.material3.Scaffold { padding ->
+        androidx.compose.foundation.layout.Box(Modifier.padding(padding)) { content() }
+    }
 }

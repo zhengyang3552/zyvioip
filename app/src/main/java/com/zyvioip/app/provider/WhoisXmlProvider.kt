@@ -18,7 +18,7 @@ class WhoisXmlProvider(
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
+        val map = parseObject(json, body)
         if (textField(map, "errorMessage") != null && nested(map, "ip").isEmpty()) {
             return result(ProviderStatus.ERROR, error = textField(map, "errorMessage"))
         }

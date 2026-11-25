@@ -18,7 +18,7 @@ class IpGeolocationProvider(
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
+        val map = parseObject(json, body)
         if (textField(map, "message") != null && textField(map, "ip") == null) {
             return result(ProviderStatus.ERROR, error = textField(map, "message"))
         }

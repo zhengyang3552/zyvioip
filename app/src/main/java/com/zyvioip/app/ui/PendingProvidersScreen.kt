@@ -36,7 +36,6 @@ fun PendingProvidersScreen(
     Column(modifier = modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("添加供应商", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("选择并配置后即可加入查询。密钥只保存在本机。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("返回") }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(pending, key = { it.id }) { spec ->
                 val needsConfig = results[spec.id]?.status == ProviderStatus.NEEDS_CONFIG || spec.requiresKey || spec.requiresEmail

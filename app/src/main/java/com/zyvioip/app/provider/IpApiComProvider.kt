@@ -10,15 +10,17 @@ class IpApiComProvider(
 
     override fun buildRequest(ip: String): Request = Request.Builder()
         .url(
-            okhttp3.HttpUrl.Builder().scheme("http").host("ip-api.com").addPathSegment("json").addPathSegment(ip)
-                .addQueryParameter("fields", "status,message,country,countryCode,regionName,city,isp,as,proxy,hosting,mobile,query")
-                .build()
+            okhttp3.HttpUrl.Builder().scheme("http").host("ip-api.com").apply {
+                addPathSegment("json")
+                addPathSegment(ip)
+                addQueryParameter("fields", "status,message,country,countryCode,regionName,city,isp,as,proxy,hosting,mobile,query")
+            }.build()
         )
         .get()
         .build()
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
+        val map = parseObject(json, body)
         if (textField(map, "status")?.equals("fail", ignoreCase = true) == true) {
             return result(ProviderStatus.ERROR, error = textField(map, "message") ?: "查询失败")
         }

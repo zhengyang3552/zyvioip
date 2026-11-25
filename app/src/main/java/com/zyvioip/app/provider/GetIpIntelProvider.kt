@@ -19,7 +19,7 @@ class GetIpIntelProvider(
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
+        val map = parseObject(json, body)
         val probability = numberField(map, "result")
             ?: return result(ProviderStatus.ERROR, error = "服务未返回评分")
         val asDouble = probability.toDouble()

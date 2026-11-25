@@ -17,7 +17,7 @@ class ApiVoidProvider(
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val root = json.decodeFromString<Map<String, Any?>>(body)
+        val root = parseObject(json, body)
         if (textField(root, "error") != null && nested(root, "data").isEmpty()) {
             return result(ProviderStatus.ERROR, error = textField(root, "error"))
         }

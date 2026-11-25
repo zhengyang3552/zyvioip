@@ -78,6 +78,5 @@ fun ProviderConfigScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = (spec?.requiresKey != true || apiKey.isNotBlank()) && (spec?.requiresEmail != true || email.isNotBlank()),
         ) { Text("保存") }
-        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("取消") }
     }
 }

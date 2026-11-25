@@ -2,42 +2,35 @@ package com.zyvioip.app.provider
 
 import okhttp3.Request
 
-/** ipdata.co free tier: strict HTTPS, thin response, key from config. */
+/** ipdata.free: no-key information card; returns location/ASN only, never a purity score. */
 class IpdataFreeProvider(
     spec: ProviderSpec = ProviderCatalog.byId("ipdatafree")!!,
     config: ProviderConfig? = null,
 ) : IpProvider(spec, config) {
 
     override fun buildRequest(ip: String): Request = get(
-        url("api.ipdata.co") {
-            addPathSegment(ip)
-            addQueryParameter("api-key", config.apiKey.trim())
-            addQueryParameter("fields", "ip,city,region,country_name,country_code,asn,organisation,threat,is_proxy,is_vpn,is_tor,message")
-        }
+        url("ipdata.free") { addPathSegment(ip) }
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
-        if (textField(map, "message") != null && textField(map, "ip") == null) {
-            return result(ProviderStatus.ERROR, error = textField(map, "message"))
+        val map = parseObject(json, body)
+        val ip = textField(map, "ip") ?: queriedIp
+        return if (isValidOutcomeIp(ip)) {
+            result(
+                status = ProviderStatus.SUCCESS,
+                ip = ip,
+                country = textField(map, "country"),
+                city = textField(map, "city"),
+                region = textField(map, "region"),
+                company = textField(map, "org"),
+                asn = textField(map, "asn"),
+                message = "仅信息源，不参与评分",
+            )
+        } else {
+            result(ProviderStatus.ERROR, error = textField(map, "message") ?: "服务未返回有效 IP")
         }
-        val threat = nested(map, "threat")
-        val flags = buildSet {
-            if (boolField(map, "is_proxy") == true || boolField(threat, "is_proxy") == true) add(ProviderFlag.PROXY)
-            if (boolField(map, "is_vpn") == true || boolField(threat, "is_vpn") == true) add(ProviderFlag.VPN)
-            if (boolField(map, "is_tor") == true || boolField(threat, "is_tor") == true) add(ProviderFlag.TOR)
-            if (boolField(threat, "is_known_abuser") == true || boolField(threat, "is_attacker") == true) add(ProviderFlag.ABUSER)
-        }
-        return result(
-            status = ProviderStatus.SUCCESS,
-            ip = textField(map, "ip") ?: queriedIp,
-            country = textField(map, "country_name"),
-            countryCode = textField(map, "country_code"),
-            city = textField(map, "city"),
-            region = textField(map, "region"),
-            company = textField(map, "organisation"),
-            asn = textField(map, "asn"),
-            flags = flags,
-        )
     }
+
+    private fun isValidOutcomeIp(value: String): Boolean =
+        value.contains('.') || value.contains(':')
 }

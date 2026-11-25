@@ -22,7 +22,7 @@ class AbuseIpdbProvider(
         }
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val data = nested(json.decodeFromString<Map<String, Any?>>(body), "data")
+        val data = nested(parseObject(json, body), "data")
         val score = numberField(data, "abuseConfidenceScore")
         val flags = buildSet {
             if ((score?.toInt() ?: 0) >= 50) add(ProviderFlag.ABUSER)

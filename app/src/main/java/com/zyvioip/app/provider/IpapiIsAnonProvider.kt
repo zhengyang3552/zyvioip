@@ -15,7 +15,7 @@ class IpapiIsAnonProvider(
     )
 
     override fun parse(body: String, queriedIp: String): ProviderOutcome {
-        val map = json.decodeFromString<Map<String, Any?>>(body)
+        val map = parseObject(json, body)
         val location = nested(map, "location")
         val asn = nested(map, "asn")
         val company = nested(map, "company")
