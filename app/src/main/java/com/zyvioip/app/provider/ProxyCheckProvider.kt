@@ -81,6 +81,7 @@ class ProxyCheckProvider(
 
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(entry),
             ip = queriedIp,
             country = textField(entry, "country"),
             countryCode = textField(entry, "isocode"),

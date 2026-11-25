@@ -24,6 +24,7 @@ class WhoisXmlProvider(
         }
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = textField(map, "ip") ?: queriedIp,
             country = textField(map, "country"),
             countryCode = textField(map, "countryCode"),

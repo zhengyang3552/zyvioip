@@ -25,6 +25,12 @@ data class ProviderOutcome(
     val message: String? = null,
     val error: String? = null,
     val fromCache: Boolean = false,
+    /**
+     * 该源返回的**全部原始字段**（已把嵌套对象拍平）。
+     * 用途：卡片展开时展示完整数据，避免请求了却只显示几个字段浪费掉。
+     * 只保留有实际值的键，嵌套结构用 "a.b" 形式表示。
+     */
+    val rawFields: Map<String, String> = emptyMap(),
 ) {
     val succeeded: Boolean get() = status == ProviderStatus.SUCCESS
 }

@@ -16,6 +16,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +48,9 @@ fun ProviderCard(
     result: ProviderOutcome?,
     onRetry: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** 展开状态由外层持有：左滑手势需要知道当前是否展开，以决定是否拦截触摸 */
+    expanded: Boolean = false,
+    onExpandedChange: (Boolean) -> Unit = {},
 ) {
     val status = result?.status ?: ProviderStatus.PENDING
     val statusText = when (status) {
@@ -56,9 +65,12 @@ fun ProviderCard(
         ProviderStatus.SUCCESS -> Color(0xFF2E9E5B)
         ProviderStatus.ERROR -> Color(0xFFD64B4B)
         ProviderStatus.NEEDS_CONFIG -> Color(0xFFD08A1E)
-        ProviderStatus.SKIPPED -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+
+    val raw = result?.rawFields.orEmpty()
+    val hasDetail = raw.isNotEmpty()
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -66,11 +78,16 @@ fun ProviderCard(
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = spec.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = spec.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(text = statusText, color = statusColor, style = MaterialTheme.typography.labelMedium)
-                // 重试按钮始终显示，只在“查询中”时禁用。
-                // 之前只在 ERROR / NEEDS_CONFIG 时出现，用户成功后想手动刷新却找不到入口；
-                // 而且新增的 SKIPPED 状态也会让它消失。
+                // 重试按钮始终显示，只在“查询中”时禁用
                 IconButton(
                     onClick = { onRetry(spec.id) },
                     enabled = status != ProviderStatus.LOADING,
@@ -87,53 +104,122 @@ fun ProviderCard(
                         },
                     )
                 }
+                // 折叠/展开：只有拿到明细时才显示箭头
+                if (hasDetail) {
+                    IconButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (expanded) "收起 ${spec.name}" else "展开 ${spec.name} 的全部字段",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                // 显示“风险 N”而不是“纯度 N”：各家接口给的本来就是风险/欺诈分，
-                // 直接展示原始语义，避免用户反向理解。
+
+            // 简要徽标：风险分 / 来源属性 / 标记
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 result?.riskScore?.let { risk ->
                     AssistChip(
                         onClick = {},
                         enabled = false,
-                        label = { Text("风险 $risk") },
+                        label = { Text("风险 $risk", style = MaterialTheme.typography.labelSmall) },
                         colors = AssistChipDefaults.assistChipColors(
                             disabledLabelColor = purityColor(100 - risk),
                             disabledContainerColor = purityColor(100 - risk).copy(alpha = 0.12f),
                         ),
                     )
                 }
-                // 优先显示更具体的来源判定（原生/广播/机房），其次是粗略的住宅标记
                 result?.origin?.let { origin ->
                     AssistChip(
                         onClick = {},
                         enabled = false,
                         label = { Text(origin.label, style = MaterialTheme.typography.labelSmall) },
                     )
-                } ?: result?.isResidential?.let { residential ->
+                }
+                result?.flags?.forEach { flag ->
                     AssistChip(
                         onClick = {},
                         enabled = false,
-                        label = { Text(if (residential) "住宅/原生" else "非住宅", style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(flagLabel(flag), style = MaterialTheme.typography.labelSmall) },
                     )
                 }
-                result?.flags?.forEach { flag ->
-                    AssistChip(onClick = {}, enabled = false, label = { Text(flagLabel(flag), style = MaterialTheme.typography.labelSmall) })
-                }
-                result?.latencyMs?.takeIf { it > 0 }?.let {
-                    Text(text = "${it} ms", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                result?.latencyMs?.takeIf { it > 0 && it < 120_000 }?.let {
+                    Text("${it} ms", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            val detail = when {
-                // 这个供应商已经在列表里了，不该让用户去“添加供应商”里找它。
-                status == ProviderStatus.NEEDS_CONFIG -> "尚未配置 ${spec.configLabel.ifBlank { "密钥" }}，点击右上角重试或到设置中填写"
-                status == ProviderStatus.ERROR -> result?.error ?: "查询失败"
-                status == ProviderStatus.SUCCESS -> listOfNotNull(
-                    result?.country, result?.city, result?.company, result?.asn,
-                ).distinct().joinToString(" · ").ifBlank { result?.message }.orEmpty()
-                else -> spec.note
+
+            // 折叠时的摘要行
+            if (!expanded) {
+                val detail = when {
+                    status == ProviderStatus.NEEDS_CONFIG ->
+                        "尚未配置 ${spec.configLabel.ifBlank { "密钥" }}，点击右上角重试或到设置中填写"
+                    status == ProviderStatus.ERROR -> result?.error ?: "查询失败"
+                    status == ProviderStatus.SUCCESS -> listOfNotNull(
+                        result?.country, result?.city, result?.company, result?.asn,
+                    ).distinct().joinToString(" · ").ifBlank { result?.message }.orEmpty()
+                    else -> spec.note
+                }
+                if (detail.isNotBlank()) {
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            if (detail.isNotBlank()) {
-                Text(text = detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+
+            // 展开：完整字段表
+            if (expanded && hasDetail) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = 2.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                )
+                Text(
+                    text = "${spec.name} 返回的全部字段（${raw.size} 项）",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                // 字段较多，用纵向滚动避免撑爆卡片
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    raw.forEach { (key, value) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = key,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = value,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1.2f),
+                            )
+                        }
+                    }
+                }
+                result?.message?.takeIf { it.isNotBlank() && status == ProviderStatus.SUCCESS }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

@@ -71,6 +71,7 @@ class IpPureProvider(
 
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = returnedIp,
             country = textField(map, "country"),
             countryCode = textField(map, "countryCode"),

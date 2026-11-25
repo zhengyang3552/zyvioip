@@ -107,6 +107,7 @@ class IpApiComProvider(
 
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = textField(map, "query") ?: queriedIp,
             country = textField(map, "country"),
             countryCode = textField(map, "countryCode"),

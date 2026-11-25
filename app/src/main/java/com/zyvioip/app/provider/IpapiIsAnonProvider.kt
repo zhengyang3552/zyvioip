@@ -54,6 +54,7 @@ class IpapiIsAnonProvider(
 
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = ip,
             country = textField(map, "country"),
             countryCode = countryCodeFromName(textField(map, "country")),

@@ -79,6 +79,7 @@ class GetIpIntelProvider(
         }
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = queriedIp,
             riskScore = risk,
             purity = toPurity(risk),

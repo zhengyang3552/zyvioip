@@ -149,6 +149,7 @@ fun ProviderResult.asOutcome(): com.zyvioip.app.provider.ProviderOutcome =
         riskScore = signals.riskScores.values.firstOrNull(),
         isResidential = signals.isResidential,
         isBroadcast = signals.isBroadcast,
+        rawFields = signals.rawFields,
         flags = signals.flags,
         fromCache = fromCache,
     )

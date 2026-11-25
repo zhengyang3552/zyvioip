@@ -107,6 +107,7 @@ abstract class IpProvider(
         flags: Set<String> = emptySet(),
         message: String? = null,
         error: String? = null,
+        rawFields: Map<String, String> = emptyMap(),
     ): ProviderOutcome = ProviderOutcome(
         providerId = spec.id,
         status = status,
@@ -125,6 +126,7 @@ abstract class IpProvider(
         flags = flags,
         message = message,
         error = error,
+        rawFields = rawFields,
     )
 
     protected fun clean(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() && it != "-" }

@@ -32,6 +32,7 @@ class IpdataFreeProvider(
         return if (isValidOutcomeIp(ip)) {
             result(
                 status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
                 ip = ip,
                 country = textField(map, "country_name") ?: textField(map, "country"),
                 countryCode = textField(map, "country_code"),

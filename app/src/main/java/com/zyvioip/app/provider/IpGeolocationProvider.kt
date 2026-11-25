@@ -32,6 +32,7 @@ class IpGeolocationProvider(
         }
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = textField(map, "ip") ?: queriedIp,
             country = textField(map, "country_name"),
             countryCode = textField(map, "country_code2"),

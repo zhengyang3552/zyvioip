@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +51,9 @@ internal fun ProviderDismissItem(
     val actionWidthPx = with(LocalDensity.current) { ACTION_WIDTH.toPx() }
     var offsetX by remember(state.providerId) { mutableFloatStateOf(0f) }
     var revealed by remember(state.providerId) { mutableStateOf(false) }
+    // 展开状态放在这里：展开后内部字段列表需要纵向滚动，
+    // 此时必须禁掉左滑，否则横向手势会把滚动吃掉。
+    var expanded by rememberSaveable(state.providerId) { mutableStateOf(false) }
 
     // 卡片被移出列表时把偏移归零，避免复用错位
     LaunchedEffect(Unit) { offsetX = 0f }
@@ -58,7 +62,7 @@ internal fun ProviderDismissItem(
         targetValue = if (revealed) -actionWidthPx else 0f,
         label = "provider-card-offset",
     )
-    val currentOffset = if (offsetX != 0f) offsetX else animatedOffset
+    val currentOffset = if (expanded) 0f else if (offsetX != 0f) offsetX else animatedOffset
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // 背景层：圆形删除按钮，只有卡片被推开后才可点。
@@ -95,7 +99,12 @@ internal fun ProviderDismissItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationX = currentOffset }
-                .pointerInput(state.providerId, actionWidthPx) {
+                // 只响应“明显的横向滑动”：onHorizontalDrag 只有在横向位移超过
+                // 系统的 touch slop、且横向优先时才会触发，纵向手势会留给内部滚动容器。
+                // 这样展开后的字段列表可以正常上下滚动，不会被左滑手势吃掉。
+                // 展开时完全不挂载手势检测，让内部滚动容器独占触摸
+                .pointerInput(state.providerId, actionWidthPx, expanded) {
+                    if (expanded) return@pointerInput
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             // 超过一半就吸附到“已展开”，否则回弹
@@ -103,12 +112,19 @@ internal fun ProviderDismissItem(
                             offsetX = 0f
                         },
                         onHorizontalDrag = { _, dragAmount ->
+                            // 已经在滚动字段列表时不接管横向
                             offsetX = (offsetX + dragAmount).coerceIn(-actionWidthPx * 1.2f, 0f)
                         },
                     )
                 },
         ) {
-            ProviderCard(spec = spec, result = state, onRetry = onRetry)
+            ProviderCard(
+                spec = spec,
+                result = state,
+                onRetry = onRetry,
+                expanded = expanded,
+                onExpandedChange = { expanded = it },
+            )
         }
     }
 }

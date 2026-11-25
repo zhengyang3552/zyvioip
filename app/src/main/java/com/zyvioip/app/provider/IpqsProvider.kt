@@ -33,6 +33,7 @@ class IpqsProvider(
         }
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = queriedIp,
             country = textField(map, "country_code") ?: textField(map, "country"),
             city = textField(map, "city"),

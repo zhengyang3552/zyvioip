@@ -23,6 +23,8 @@ data class IpSignals(
     val isBroadcast: Boolean? = null,
     /** 各家给出的风险分（0-100，越大越危险），按来源名保存，用于展示明细 */
     val riskScores: Map<String, Int> = emptyMap(),
+    /** 该源返回的原始字段（已拍平），用于卡片展开时展示全部明细 */
+    val rawFields: Map<String, String> = emptyMap(),
     /** True when at least one provider explicitly reported a positive abuse signal. */
     val flags: Set<String> = emptySet(),
 ) {
@@ -59,6 +61,7 @@ fun mergeSignals(base: IpSignals, next: IpSignals): IpSignals = IpSignals(
     isResidential = mergeBoolean(base.isResidential, next.isResidential),
     isBroadcast = mergeBoolean(base.isBroadcast, next.isBroadcast),
     riskScores = base.riskScores + next.riskScores,
+    rawFields = base.rawFields + next.rawFields,
     flags = base.flags + next.flags,
 )
 

@@ -38,6 +38,7 @@ class IpWhoIsProvider(
         val asnValue = numberField(connection, "asn")?.toInt()?.let { "AS$it" }
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = textField(map, "ip") ?: queriedIp,
             country = textField(map, "country"),
             countryCode = textField(map, "country_code"),

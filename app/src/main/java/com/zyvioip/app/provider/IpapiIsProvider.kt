@@ -32,6 +32,7 @@ class IpapiIsProvider(
         }
         return result(
             status = ProviderStatus.SUCCESS,
+            rawFields = flattenForDisplay(map),
             ip = textField(map, "ip") ?: queriedIp,
             country = textField(location, "country") ?: textField(map, "country"),
             countryCode = textField(location, "country_code"),

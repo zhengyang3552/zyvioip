@@ -276,6 +276,7 @@ class IpLookupRepository(
                         riskScores = outcome.riskScore?.let {
                             mapOf((ProviderCatalog.byId(providerId)?.name ?: providerId) to it)
                         }.orEmpty(),
+                        rawFields = outcome.rawFields,
                         flags = outcome.flags,
                     ),
                     purity = outcome.purity, error = outcome.error,
