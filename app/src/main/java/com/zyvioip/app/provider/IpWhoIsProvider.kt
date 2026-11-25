@@ -26,7 +26,7 @@ class IpWhoIsProvider(
         }
     )
 
-    internal override fun parse(body: String, queriedIp: String): ProviderOutcome {
+    override fun parse(body: String, queriedIp: String): ProviderOutcome {
         val map = parseObject(json, body)
         if (map.isEmpty()) {
             return result(ProviderStatus.ERROR, error = "响应解析失败，请稍后重试")

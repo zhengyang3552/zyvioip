@@ -28,7 +28,7 @@ class IpapiIsAnonProvider(
         }
     )
 
-    internal override fun parse(body: String, queriedIp: String): ProviderOutcome {
+    override fun parse(body: String, queriedIp: String): ProviderOutcome {
         val map = parseObject(json, body)
 
         // 错误响应：{"error": "..."} 且没有 ip
