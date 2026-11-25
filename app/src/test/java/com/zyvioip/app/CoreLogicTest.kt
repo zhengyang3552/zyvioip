@@ -78,10 +78,11 @@ class CoreLogicTest {
         assertTrue(parseFlags(null).isEmpty())
     }
 
-    @Test fun catalog_hasElevenProvidersAndFourDefaultActive() {
+    @Test fun catalog_providerCountAndDefaultActiveAreConsistent() {
         assertEquals(12, ProviderCatalog.all.size)
-        // ipdata.co 无 key 必然 401，已移出默认启用；由真正免密钥的 ipwho.is 顶替
-        val expectedActive = setOf("getipintel", "ipapicom", "ipwhois", "ipapisanon")
+        // GetIPIntel 强制要求联系邮箱（否则返回 -6），ipdata.co 无 key 必然 401，
+        // 两者都不再默认启用；默认启用的三个源全部免密钥。
+        val expectedActive = setOf("ipapicom", "ipwhois", "ipapisanon")
         assertEquals(expectedActive, ProviderCatalog.defaultActiveIds)
         assertEquals(com.zyvioip.app.provider.ProviderAuth.EMAIL, ProviderCatalog.byId("getipintel")!!.auth)
         // ipdata.co 现在必须配置 key
