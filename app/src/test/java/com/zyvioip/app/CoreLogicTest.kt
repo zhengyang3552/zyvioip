@@ -61,7 +61,8 @@ class CoreLogicTest {
 
     @Test fun classifier_followsPriority() {
         assertTrue(classifyIpType(IpSignals(isTor = true, isVpn = true, isProxy = true)).name == "TOR")
-        assertTrue(classifyIpType(IpSignals(isProxy = true, isVpn = true)).name == "PROXY")
+        // VPN 优先级高于代理：同时命中时归为 VPN
+        assertEquals("VPN", classifyIpType(IpSignals(isProxy = true, isVpn = true)).name)
         assertTrue(classifyIpType(IpSignals(isVpn = true, isDatacenter = true)).name == "VPN")
         assertTrue(classifyIpType(IpSignals(isDatacenter = true, isMobile = true)).name == "DATACENTER")
         assertTrue(classifyIpType(IpSignals(isMobile = true)).name == "MOBILE")
