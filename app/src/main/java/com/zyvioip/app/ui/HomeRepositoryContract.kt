@@ -23,6 +23,13 @@ interface HomeRepositoryApi {
     suspend fun setConfig(providerId: String, config: ProviderConfig)
     suspend fun getConfig(providerId: String): ProviderConfig
     suspend fun clearCache()
+
+    /**
+     * 重新探测本机公网 IP。
+     * @param forceQuery 为 true 时即使 IP 没变也重新查询；网络切换后建议传 true。
+     * @return 检测到的新 IP（探测失败时为 null）
+     */
+    suspend fun refreshLocalIp(forceQuery: Boolean = false): String?
     suspend fun updateSettings(settings: HomeSettings)
 }
 

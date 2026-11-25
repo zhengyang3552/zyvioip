@@ -1,20 +1,19 @@
 package com.zyvioip.app.ui
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -63,28 +61,31 @@ internal fun ProviderDismissItem(
     val currentOffset = if (offsetX != 0f) offsetX else animatedOffset
 
     Box(modifier = Modifier.fillMaxWidth()) {
-        // 背景层：删除按钮。只有卡片被推开后才可点。
-        Row(
+        // 背景层：圆形删除按钮，只有卡片被推开后才可点。
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .width(ACTION_WIDTH)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.errorContainer),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                .width(ACTION_WIDTH),
+            contentAlignment = Alignment.Center,
         ) {
-            IconButton(
+            FilledIconButton(
                 onClick = {
                     revealed = false
                     onRemove(state.providerId)
                 },
                 enabled = revealed || currentOffset < -actionWidthPx * 0.3f,
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                    disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f),
+                ),
+                modifier = Modifier.size(40.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "移除 ${spec.name}",
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.size(20.dp),
                 )
             }

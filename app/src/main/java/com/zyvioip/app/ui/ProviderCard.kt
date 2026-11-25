@@ -68,10 +68,24 @@ fun ProviderCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(text = spec.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(text = statusText, color = statusColor, style = MaterialTheme.typography.labelMedium)
-                if (status == ProviderStatus.ERROR || status == ProviderStatus.NEEDS_CONFIG) {
-                    IconButton(onClick = { onRetry(spec.id) }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "重试 ${spec.name}", modifier = Modifier.size(16.dp))
-                    }
+                // 重试按钮始终显示，只在“查询中”时禁用。
+                // 之前只在 ERROR / NEEDS_CONFIG 时出现，用户成功后想手动刷新却找不到入口；
+                // 而且新增的 SKIPPED 状态也会让它消失。
+                IconButton(
+                    onClick = { onRetry(spec.id) },
+                    enabled = status != ProviderStatus.LOADING,
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = if (status == ProviderStatus.LOADING) "查询中" else "重试 ${spec.name}",
+                        modifier = Modifier.size(16.dp),
+                        tint = if (status == ProviderStatus.LOADING) {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                    )
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

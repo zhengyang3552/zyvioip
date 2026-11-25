@@ -86,6 +86,24 @@ class IpLookupRepository(
         if (settings.autoLookup) currentIp?.let { search(it) }
     }
 
+    override suspend fun refreshLocalIp(forceQuery: Boolean): String? {
+        val previous = _localIp.value
+        val detected = localIpRepository.detect()
+            ?: return previous.also {
+                _error.value = "无法获取本机公网 IP，请检查网络后重试"
+            }
+        _localIp.value = detected
+        cache.putLocalIp(LOCAL_CACHE_KEY, detected)
+        val changed = detected != previous
+        // 切网络后即使探测到的 IP 相同，链路可能已经变了（例如跨运营商），
+        // 所以 forceQuery=true 时也重查一次。
+        if (changed || forceQuery) {
+            currentIp = detected
+            search(detected)
+        }
+        return detected
+    }
+
     override suspend fun search(ip: String) {
         val cleanIp = ip.trim()
         if (!isValidIp(cleanIp)) {

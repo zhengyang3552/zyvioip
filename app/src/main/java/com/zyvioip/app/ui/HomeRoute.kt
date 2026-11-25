@@ -11,7 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.LaunchedEffect
 import com.zyvioip.app.ZyvioIpApp
+import com.zyvioip.app.repository.NetworkWatcher
 
 @Composable
 fun HomeRoute(modifier: Modifier = Modifier) {
@@ -29,9 +31,19 @@ fun HomeRoute(modifier: Modifier = Modifier) {
     val error = startupError ?: repoError
     val settings by viewModel.settings.collectAsState()
     val configs by viewModel.configs.collectAsState()
+    val refreshingIp by viewModel.refreshingIp.collectAsState()
     var settingsOpen by remember { mutableStateOf(false) }
     var pendingOpen by remember { mutableStateOf(false) }
     var configProviderId by remember { mutableStateOf<String?>(null) }
+
+    // 网络切换（Wi-Fi <-> 移动网络）后自动重新探测本机 IP；
+    // 只有 IP 真的变了才会重查，避免无谓请求。
+    val appContext = LocalContext.current
+    LaunchedEffect(appContext) {
+        NetworkWatcher(appContext).changes().collect {
+            viewModel.onNetworkChanged()
+        }
+    }
 
     // System back should navigate back one settings level, never finish the Activity from a subpage.
     BackHandler(enabled = configProviderId != null) { configProviderId = null }
@@ -61,6 +73,8 @@ fun HomeRoute(modifier: Modifier = Modifier) {
         onRetry = viewModel::retry,
         onRemove = viewModel::removeProvider,
         onClearCache = viewModel::clearCache,
+        refreshingIp = refreshingIp,
+        onRefreshLocalIp = { viewModel.refreshLocalIp(forceQuery = true) },
         onUseLocalIp = viewModel::useLocalIp,
         modifier = modifier,
     )

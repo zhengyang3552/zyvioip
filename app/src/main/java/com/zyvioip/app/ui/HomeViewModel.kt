@@ -19,6 +19,10 @@ class HomeViewModel(
 
     val settings: StateFlow<HomeSettings> = repository.homeSettings
 
+    private val _refreshingIp = MutableStateFlow(false)
+    /** 正在重新探测本机 IP（用于给刷新按钮转圈） */
+    val refreshingIp: StateFlow<Boolean> = _refreshingIp.asStateFlow()
+
     private val _startupError = MutableStateFlow<String?>(null)
     val startupError: StateFlow<String?> = _startupError.asStateFlow()
 
@@ -73,6 +77,24 @@ class HomeViewModel(
     fun useLocalIp(ip: String) {
         _query.value = ip
         launchSafely { repository.search(ip) }
+    }
+
+    /** 手动刷新本机 IP；forceQuery=true 时即使 IP 未变也重查。 */
+    fun refreshLocalIp(forceQuery: Boolean = true) {
+        if (_refreshingIp.value) return
+        launchSafely {
+            _refreshingIp.value = true
+            try {
+                repository.refreshLocalIp(forceQuery)
+            } finally {
+                _refreshingIp.value = false
+            }
+        }
+    }
+
+    /** 网络切换后调用：IP 变了才重查，避免无谓请求。 */
+    fun onNetworkChanged() {
+        launchSafely { repository.refreshLocalIp(forceQuery = false) }
     }
 
     fun retry(providerId: String) {

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -82,6 +84,8 @@ fun HomeScreen(
     onRetry: (String) -> Unit,
     onRemove: (String) -> Unit,
     onClearCache: () -> Unit,
+    refreshingIp: Boolean = false,
+    onRefreshLocalIp: () -> Unit = {},
     onUseLocalIp: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -90,8 +94,12 @@ fun HomeScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val activeIds = providerStates.map { it.providerId }.toSet()
 
+    // 显式给 Short：不指定 duration 时，带 actionLabel 的 Snackbar 会一直等用户点击，
+    // 表现就是“提示消不掉”。
     LaunchedEffect(error) {
-        if (!error.isNullOrBlank()) snackbar.showSnackbar(error)
+        if (!error.isNullOrBlank()) {
+            snackbar.showSnackbar(message = error, duration = SnackbarDuration.Short)
+        }
     }
 
     Scaffold(
@@ -156,15 +164,20 @@ fun HomeScreen(
                 localIp = localIp,
                 loading = loading,
                 showFlags = settings.showFlags,
+                refreshingIp = refreshingIp,
                 onUseLocalIp = onUseLocalIp,
+                onRefreshLocalIp = onRefreshLocalIp,
                 onPendingOpen = { onPendingOpen(true) },
                 onRetry = onRetry,
                 onRemove = { id ->
                     onRemove(id)
                     scope.launch {
+                        // 先清掉可能还在显示的旧提示，避免多条堆叠
+                        snackbar.currentSnackbarData?.dismiss()
                         val result = snackbar.showSnackbar(
-                            "已移除 ${ProviderCatalog.byId(id)?.name ?: id}",
+                            message = "已移除 ${ProviderCatalog.byId(id)?.name ?: id}",
                             actionLabel = "撤销",
+                            duration = SnackbarDuration.Short,
                         )
                         if (result == SnackbarResult.ActionPerformed) onAddProvider(id)
                     }
@@ -185,7 +198,9 @@ private fun HomeContent(
     localIp: String?,
     loading: Boolean,
     showFlags: Boolean,
+    refreshingIp: Boolean,
     onUseLocalIp: (String) -> Unit,
+    onRefreshLocalIp: () -> Unit,
     onPendingOpen: () -> Unit,
     onRetry: (String) -> Unit,
     onRemove: (String) -> Unit,
@@ -227,6 +242,7 @@ private fun HomeContent(
 
         // 本机公网 IP：做成一行紧凑的可点文字，不再占一整块胶囊高度。
         localIp?.let { ip ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "本机 IP $ip · 点击查询",
                 style = MaterialTheme.typography.labelMedium,
@@ -238,6 +254,24 @@ private fun HomeContent(
                     .clickable { onUseLocalIp(ip) }
                     .padding(vertical = 2.dp, horizontal = 4.dp),
             )
+            // 手动刷新：切网络后如果自动监测没触发，用户可以点这里强制重新探测
+            IconButton(
+                onClick = onRefreshLocalIp,
+                enabled = !refreshingIp,
+                modifier = Modifier.size(24.dp),
+            ) {
+                if (refreshingIp) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "刷新本机 IP",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            }
         }
 
         if (loading) {

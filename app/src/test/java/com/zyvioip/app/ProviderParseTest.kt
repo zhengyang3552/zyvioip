@@ -39,6 +39,28 @@ class ProviderParseTest {
         assertTrue(clean.message!!.contains("未发现代理"))
     }
 
+    @Test fun getIpIntel_statusErrorWithPositiveResultIsRejected() {
+        val provider = GetIpIntelProvider()
+        // status=error 但 result 非负：异常组合，不能编造分数
+        val outcome = provider.parseForTest("""{"status":"error","result":0.9,"message":"rate limited"}""", "1.2.3.4")
+        assertEquals(ProviderStatus.ERROR, outcome.status)
+        assertEquals("rate limited", outcome.error)
+        assertEquals(null, outcome.riskScore)
+    }
+
+    @Test fun getIpIntel_percentageScaleIsHandled() {
+        val provider = GetIpIntelProvider()
+        // 百分制输入：50 表示 50%，应得到 risk=50 而不是 100
+        val outcome = provider.parseForTest("""{"status":"success","result":50}""", "1.2.3.4")
+        assertEquals(50, outcome.riskScore)
+        // 100 表示 100%
+        val full = provider.parseForTest("""{"status":"success","result":100}""", "1.2.3.4")
+        assertEquals(100, full.riskScore)
+        // 0~1 概率制：0.5 -> 50
+        val prob = provider.parseForTest("""{"status":"success","result":0.5}""", "1.2.3.4")
+        assertEquals(50, prob.riskScore)
+    }
+
     @Test fun getIpIntel_highProbabilityMapsToHighRisk() {
         val provider = GetIpIntelProvider()
         val dirty = provider.parseForTest("""{"status":"success","result":0.9}""", "1.2.3.4")
