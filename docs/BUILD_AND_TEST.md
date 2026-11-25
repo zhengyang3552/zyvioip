@@ -27,11 +27,13 @@ git push origin v1.0.3
 
 ## 装包前自查
 
-CI 日志里必须出现：
+CI 日志里必须出现（注意 CI 用的是 `--min-sdk-version 21`，否则 v1 会被标成 false）：
 
 ```
 Verified using v1 scheme (JAR signing): true
 Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+v1 签名文件齐全：MANIFEST.MF / CERT.SF / CERT.RSA
 ```
 
 以及 Step Summary 里的 `SHA-256` 等于 `docs/SIGNING.md` 中的固定值。

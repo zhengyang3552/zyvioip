@@ -29,8 +29,27 @@ enableV3Signing = true
 OriginOS、EMUI 等国产 ROM 的包安装器仍会读取 v1（JAR）签名做预校验，只有 v2 的包会被
 判定为「解析软件包时出现问题 / 无效的安装包」，直接装不上。
 
-v1.0.0 ~ v1.0.2 就是踩了这个坑：包的 ZIP 结构、dex、证书全都正常，但 `apksigner verify`
-显示 `Verified using v1 scheme (JAR signing): false`，因此在这些 ROM 上无法安装。
+v1.0.0 ~ v1.0.2 就是踩了这个坑：包的 ZIP 结构、dex、证书全都正常，但包里根本没有
+`META-INF/MANIFEST.MF` / `CERT.SF` / `CERT.RSA` 三个 v1 签名文件，因此在这些 ROM 上无法安装。
+
+### 一个容易误解的点
+
+对 `minSdk >= 24` 的包，直接跑 `apksigner verify` 会输出：
+
+```
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+```
+
+这个 `v1: false` **不代表 v1 没签上** —— 它只表示「该方案对当前 minSdk 不是必需的，
+apksigner 没去校验它」。要确认 v1 真的有效，必须显式降低 minSdk：
+
+```bash
+apksigner verify --min-sdk-version 21 --verbose --print-certs app-release.apk
+```
+
+此时应看到 `v1: true / v2: true / v3: true`。
+CI 里用的就是这条命令，因此不会误判。
 
 ## CI 的强制校验
 

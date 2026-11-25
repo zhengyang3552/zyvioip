@@ -239,7 +239,11 @@ jobs:
           APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
           test -n "$APK" || { echo "::error::未找到 Release APK"; exit 1; }
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -1)
-          "$APKSIGNER" verify --verbose --print-certs "$APK" > certs.txt
+
+          # 注意：直接用 apksigner verify 时，若 APK 的 minSdk >= 24，
+          # apksigner 会把 v1 标成 "false"，因为该方案对 minSdk>=24 不是必需的 —— 
+          # 这不代表 v1 没签上。要验证 v1 是否真的有效，必须把 min-sdk 压到 24 以下。
+          "$APKSIGNER" verify --min-sdk-version 21 --verbose --print-certs "$APK" > certs.txt
           cat certs.txt
 
           V1=$(grep -c "Verified using v1 scheme (JAR signing): true" certs.txt || true)
@@ -250,8 +254,20 @@ jobs:
             exit 1
           fi
           if [ "$V3" -lt 1 ]; then
-            echo "::warning::缺少 v3 签名方案（Android 9+ 推荐），建议检查 enableV3Signing"
+            echo "::error::缺少 v3 签名方案，检查 enableV3Signing"
+            exit 1
           fi
+          # 再从 ZIP 层面复核 v1 的三个签名文件确实存在（防止 enableV1Signing 被误关）
+          python3 -c "
+          import sys, zipfile
+          names = set(zipfile.ZipFile('$APK').namelist())
+          need = ('META-INF/MANIFEST.MF', 'META-INF/CERT.SF', 'META-INF/CERT.RSA')
+          missing = [f for f in need if f not in names]
+          if missing:
+              print('::error::缺少 v1 签名文件 ' + str(missing) + '，国产 ROM 会报「解析软件包时出现问题」')
+              sys.exit(1)
+          print('v1 签名文件齐全：MANIFEST.MF / CERT.SF / CERT.RSA')
+          "
 
           SHA256=$(grep -oE 'SHA-256 digest: .*' certs.txt | head -1 | cut -d' ' -f3-)
           EXPECTED="52c76737d22aa3e7f2bf1ac98e9fdb5fd4776034612264e683213c44d270a1b4"
