@@ -1,0 +1,11 @@
+.gradle/
+local.properties
+.DS_Store
+/capture
+*.iml
+.idea/
+build/
+app/build/
+*.apk
+
+*.hprof
