@@ -299,9 +299,14 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
-          cp "$APK" "dist/zyvioip-${GITHUB_REF_NAME}-release.apk"
-          cp "$APK" "dist/zyvioip-latest.apk"
+          # 只产出一个 APK。
+          # 之前同时放了 zyvioip-latest.apk 和 zyvioip-<tag>-release.apk，
+          # 是同一个文件的两个副本，导致每个 Release 的 Assets 里出现两份 APK，
+          # 看着像“发布了两遍”。GITHUB_REF_NAME 形如 v0.0.1，这里直接去掉前缀 v。
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp "$APK" "dist/zyvioip-${VERSION}.apk"
           ls -lh dist/
+          test "$(find dist -name '*.apk' | wc -l)" -eq 1 || { echo "::error::dist 里应只有 1 个 APK"; exit 1; }
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
