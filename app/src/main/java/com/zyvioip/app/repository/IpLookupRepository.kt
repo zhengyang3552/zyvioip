@@ -164,12 +164,15 @@ class IpLookupRepository(
                     continue
                 }
 
-                // 把“当前这个”标成 LOADING，其余仍等待 —— 用户能看到进行到第几个
+                // 把“当前这个”标成 LOADING。
+                // 只在确实需要变更时才写回 —— 每次都无脑 map 出全新 List 会让
+                // LazyColumn 认为整个列表变了，触发一轮完整重组。
                 stateMutex.withLock {
-                    _providerStates.value = _providerStates.value.map {
-                        when (it.providerId) {
-                            spec.id -> it.copy(status = ProviderStatus.LOADING)
-                            else -> it
+                    val current = _providerStates.value
+                    val idx = current.indexOfFirst { it.providerId == spec.id }
+                    if (idx >= 0 && current[idx].status != ProviderStatus.LOADING) {
+                        _providerStates.value = current.toMutableList().also {
+                            it[idx] = it[idx].copy(status = ProviderStatus.LOADING)
                         }
                     }
                 }
@@ -180,9 +183,8 @@ class IpLookupRepository(
                 // 单条完成即回写：逐卡刷新，避免“等全部完成才一起跳变”
                 val snapshot = collected.toList()
                 stateMutex.withLock {
-                    var next = _providerStates.value
-                    snapshot.forEach { next = upsert(next, it) }
-                    _providerStates.value = next
+                    val next = upsert(_providerStates.value, outcome)
+                    if (next != _providerStates.value) _providerStates.value = next
                 }
 
                 // 汇总只在最后一条、或中途遇到条目变化时才重算，
