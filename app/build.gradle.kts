@@ -63,6 +63,19 @@ android {
         }
     }
 
+    /**
+     * 兜底：即使将来某个依赖把 lifecycle 拉到 2.8.x，也强制锁在 2.7.0。
+     * 理由是当前 compose-ui 1.6.8 无法满足 2.8.x 对 LocalLifecycleOwner 的要求，
+     * 一旦被顶上去就是启动崩溃。
+     */
+    configurations.all {
+        resolutionStrategy {
+            force("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+            force("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+            force("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -84,18 +97,26 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
-    // collectAsStateWithLifecycle
-    //
-    // 必须用 2.7.x，不能跟 lifecycle-runtime-ktx 一起升到 2.8.x：
-    // lifecycle-runtime-compose 2.8.0+ 把 LocalLifecycleOwner 迁到了
-    // androidx.lifecycle.compose 包下，要求 compose-ui >= 1.7.0 才会注入；
-    // 而本项目 BOM 2024.06 的 compose-ui 是 1.6.8 —— 两者不匹配时
-    // collectAsStateWithLifecycle 会抛
-    //   IllegalStateException: CompositionLocal LocalLifecycleOwner not present
-    // 并在启动时直接崩溃（v0.0.5 在 Android 12 / HarmonyOS 上实测复现）。
+    /**
+     * 全部 lifecycle 组件固定 2.7.0。
+     *
+     * androidx.lifecycle 是 **atomic group**：组内任意一个包为 2.8.1 时，
+     * Gradle 会把整组统一到 2.8.1 —— 单独把 lifecycle-runtime-compose 写成
+     * 2.7.0 是无效的（v0.0.6 就是这么失败的，APK 里实际仍是 2.8.1）。
+     *
+     * 为什么不能用 2.8.x：2.8.0 起 lifecycle-runtime-compose 把
+     * LocalLifecycleOwner 迁到了 androidx.lifecycle.compose 包下，
+     * 需要 compose-ui >= 1.7 才会 Provider 它；本项目 BOM 2024.06 的
+     * compose-ui 是 1.6.8，于是启动即崩：
+     *   IllegalStateException: CompositionLocal LocalLifecycleOwner not present
+     *
+     * 2.7.0 的 collectAsStateWithLifecycle 走的是 compose-ui 自带的
+     * androidx.compose.ui.platform.LocalLifecycleOwner，与 1.6.8 匹配。
+     * 升级 Compose BOM 到 2024.09+ 之后，这里才能一起升到 2.8.x。
+     */
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
