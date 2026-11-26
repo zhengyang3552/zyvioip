@@ -143,13 +143,28 @@ class ProviderAdapter(
             }
             b.tvStatus.setText(textRes)
             b.tvStatus.setTextColor(color)
+            // 半透明同色背景：深色/浅色主题下都可见
+            b.tvStatus.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = ctx.resources.getDimension(R.dimen.chip_height) / 2
+                setColor(android.graphics.Color.argb(38,
+                    android.graphics.Color.red(color),
+                    android.graphics.Color.green(color),
+                    android.graphics.Color.blue(color)))
+            }
         }
 
         private fun bindChips(item: ProviderOutcome) {
             b.chipGroup.removeAllViews()
+            // 用 LinkedHashSet 去重：来源「机房」与标记 datacenter 会重复
+            val labels = linkedSetOf<String>()
+            item.origin?.let { labels += it.label }
+            item.flags.forEach { labels += flagLabel(it) }
+
             item.riskScore?.let { addChip(b.chipGroup, "风险 $it", riskColor(it)) }
-            item.origin?.let { addChip(b.chipGroup, it.label, null) }
-            item.flags.forEach { addChip(b.chipGroup, flagLabel(it), null) }
+            labels.forEach { addChip(b.chipGroup, it, null) }
+
+            // 没有胶囊时隐藏，否则 ChipGroup 的 marginTop 会撑出空白
+            b.chipGroup.visibility = if (b.chipGroup.childCount > 0) View.VISIBLE else View.GONE
         }
 
         private fun addChip(group: ChipGroup, text: String, tint: Int?) {

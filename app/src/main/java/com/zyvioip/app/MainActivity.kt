@@ -110,8 +110,13 @@ class MainActivity : AppCompatActivity() {
         binding.btnAddProvider.setOnClickListener {
             startActivity(Intent(this, PendingProvidersActivity::class.java))
         }
-        binding.fabSettings.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -224,17 +229,19 @@ class MainActivity : AppCompatActivity() {
             .ifBlank { "位置未知" }
         s.tvPlace.text = "$place · ${result.type.label}"
 
-        // 来源与标记：全部用胶囊
+        // 来源与标记：全部用胶囊。
+        // 先收集再去重 —— 来源（如「机房」）与标记（datacenter）语义重复，
+        // 不去重会出现两个「机房」。
         s.chipGroup.removeAllViews()
-        result.origin?.let { addPill(s.chipGroup, it.origin.label, emphasized = true) }
-        result.originVerdicts.map { it.source }.distinct().forEach {
-            addPill(s.chipGroup, it, emphasized = false)
+        val pills = linkedSetOf<String>()
+        result.origin?.let { pills += it.origin.label }
+        result.flags.forEach { pills += flagLabel(it) }
+        val emphasizedLabel = result.origin?.origin?.label
+        pills.forEach { label ->
+            addPill(s.chipGroup, label, emphasized = label == emphasizedLabel)
         }
-        result.flags.forEach { addPill(s.chipGroup, flagLabel(it), emphasized = false) }
+        s.chipGroup.visibility = if (pills.isEmpty()) View.GONE else View.VISIBLE
 
-        val hint = result.origin?.origin?.hint
-        s.tvOriginHint.visibility = if (hint.isNullOrBlank()) View.GONE else View.VISIBLE
-        s.tvOriginHint.text = hint
 
         val riskDetail = result.signals.riskScores.entries
             .joinToString("   ") { "${it.key} ${it.value}" }
@@ -254,6 +261,7 @@ class MainActivity : AppCompatActivity() {
             if (failed > 0) append(" / 未成功 $failed")
             if (skipped > 0) append(" / 跳过 $skipped")
             if (result.scoredProviderCount > 0) append(" · ${result.scoredProviderCount} 个源参与评分")
+            result.origin?.origin?.hint?.let { append(" · $it") }
         }
         s.tvNoScore.visibility = if (result.riskScore == null) View.VISIBLE else View.GONE
     }

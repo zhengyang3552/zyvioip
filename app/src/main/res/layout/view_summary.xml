@@ -80,14 +80,6 @@
             app:chipSpacingVertical="@dimen/space_xs"
             app:singleLine="false" />
 
-        <TextView
-            android:id="@+id/tvOriginHint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/space_xs"
-            android:textAppearance="?attr/textAppearanceLabelSmall"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvRiskDetail"

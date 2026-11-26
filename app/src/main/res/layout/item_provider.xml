@@ -41,11 +41,12 @@
                 android:textColor="?attr/colorOnSurface"
                 tools:text="ipto.to" />
 
+            <!-- 背景由代码按状态着色：之前用固定的 #1F000000，
+                 深色主题下几乎不可见（截图里「成功」没有底色）。 -->
             <TextView
                 android:id="@+id/tvStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_pill"
                 android:paddingStart="@dimen/space_sm"
                 android:paddingEnd="@dimen/space_sm"
                 android:paddingTop="@dimen/space_xxs"

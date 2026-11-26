@@ -419,7 +419,14 @@ class IpLookupRepository(
             if (result.status != ProviderStatus.SUCCESS) continue
             val spec = ProviderCatalog.byId(result.providerId)
             // 记录每家的原始风险分，UI 上能直接展示“哪家给了多少分”
-            val riskOfThis = result.riskScore ?: result.purity?.let { 100 - it }
+            // 只有「参与评分」的源才同时出现在明细和平均分里。
+            // 之前明细列出所有给了分的源，平均却只算 scorable=true 的，
+            // 导致界面上「明细 66/52 但总分 59」看起来算错。
+            val riskOfThis = if (spec?.scorable == true) {
+                result.riskScore ?: result.purity?.let { 100 - it }
+            } else {
+                null
+            }
             val riskMap =
                 if (riskOfThis != null) mapOf((spec?.name ?: result.providerId) to riskOfThis) else emptyMap()
 
