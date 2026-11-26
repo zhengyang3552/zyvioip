@@ -2,6 +2,7 @@ package com.zyvioip.app
 
 import android.app.Application
 import com.zyvioip.app.repository.DataStoreCacheRepository
+import com.zyvioip.app.repository.HomeRepositoryApi
 import com.zyvioip.app.repository.IpLookupRepository
 import com.zyvioip.app.repository.SettingsRepository
 

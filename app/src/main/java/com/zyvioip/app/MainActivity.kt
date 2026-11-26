@@ -22,6 +22,7 @@ import com.zyvioip.app.model.AggregatedResult
 import com.zyvioip.app.provider.ProviderCatalog
 import com.zyvioip.app.provider.ProviderOutcome
 import com.zyvioip.app.repository.NetworkWatcher
+import com.zyvioip.app.repository.flags
 import com.zyvioip.app.ui.MainViewModel
 import com.zyvioip.app.ui.ProviderAdapter
 import kotlinx.coroutines.flow.distinctUntilChanged

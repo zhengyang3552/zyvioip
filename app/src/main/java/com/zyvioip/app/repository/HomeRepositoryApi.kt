@@ -45,3 +45,8 @@ data class HomeSettings(
     val showFlags: Boolean = true,
     val notifications: Boolean = false,
 )
+
+// 便捷访问器：AggregatedResult 的常用派生值，避免每处都写 signals.xxx
+internal val AggregatedResult.countryCode: String? get() = signals.countryCode
+internal val AggregatedResult.typeLabel: String get() = type.label
+internal val AggregatedResult.flags: Set<String> get() = signals.flags
