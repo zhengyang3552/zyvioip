@@ -2,6 +2,7 @@ package com.zyvioip.app.repository
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
@@ -77,6 +78,12 @@ class DataStoreCacheRepository(
             val snap = snapshot()
             snap.providers.forEach { (key, value) -> memory.putProviderResult(key, value) }
             snap.local.forEach { (key, value) -> memory.putLocalIp(key, value.ip) }
+
+            // 历史版本没有容量上限，可能已经堆了大量条目。
+            // 启动时清理一次，避免后续每次 preload 都全量解码。
+            if (snap.providers.size > MAX_CACHE_ENTRIES) {
+                store.edit { prefs -> evictIfNeeded(prefs, keepKeyName = "") }
+            }
         }
         preloaded = true
     }
@@ -88,9 +95,53 @@ class DataStoreCacheRepository(
         // 让“最后几个源”看起来像卡住/失败。
         persistScope.launch {
             runCatching {
-                store.edit { it[stringPreferencesKey(PROVIDER_PREFIX + key)] = json.encodeToString(result.copy(fromCache = false)) }
+                store.edit { prefs ->
+                    val entryKey = stringPreferencesKey(PROVIDER_PREFIX + key)
+                    prefs[entryKey] = json.encodeToString(result.copy(fromCache = false))
+                    // 容量控制：缓存条目此前只增不减，查过的 IP 越多
+                    // DataStore 文件越大，preload 时全部解码也就越慢 ——
+                    // 这是“进页面就卡”的重要来源。
+                    evictIfNeeded(prefs, keepKeyName = entryKey.name)
+                }
             }
         }
+    }
+
+    /**
+     * 超出上限时，按 fetchedAtMillis 淘汰最旧的条目。
+     * 单次 edit 内完成，避免额外遍历 DataStore。
+     */
+    private fun evictIfNeeded(prefs: MutablePreferences, keepKeyName: String) {
+        val providerEntries = prefs.asMap().keys
+            .filter { it.name.startsWith(PROVIDER_PREFIX) }
+        if (providerEntries.size <= MAX_CACHE_ENTRIES) return
+
+        // 解不出内容的条目也单列出来：它们占空间却没价值，优先清掉
+        val decoded = mutableListOf<Pair<Preferences.Key<String>, Long>>()
+        val broken = mutableListOf<Preferences.Key<*>>()
+        providerEntries.forEach { k ->
+            @Suppress("UNCHECKED_CAST")
+            val typed = k as Preferences.Key<String>
+            val raw = prefs[typed]
+            if (raw == null) {
+                broken += k
+            } else {
+                runCatching { json.decodeFromString<ProviderResult>(raw) }
+                    .onSuccess { decoded += typed to it.fetchedAtMillis }
+                    .onFailure { broken += k }
+            }
+        }
+
+        broken.forEach { prefs.remove(it) }
+
+        // 按“最久未查”排序，保留最近的 MAX_CACHE_ENTRIES 条
+        val excess = decoded.size - MAX_CACHE_ENTRIES
+        if (excess <= 0) return
+        decoded
+            .filter { it.first.name != keepKeyName }   // 不淘汰刚写入的那条
+            .sortedBy { it.second }
+            .take(excess)
+            .forEach { (k, _) -> prefs.remove(k) }
     }
 
     override suspend fun clear() {
@@ -121,6 +172,13 @@ class DataStoreCacheRepository(
     companion object {
         private const val LOCAL_PREFIX = "local:"
         private const val PROVIDER_PREFIX = "provider:"
+
+        /**
+         * 持久缓存的条目上限。
+         * 每条含 rawFields（ipto.to 单条约 1.3KB），60 条约 500KB，
+         * 既能覆盖常用 IP，又不至于让 preload 变慢。
+         */
+        private const val MAX_CACHE_ENTRIES = 60
     }
 }
 
