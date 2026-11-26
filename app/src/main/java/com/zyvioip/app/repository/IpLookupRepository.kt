@@ -10,6 +10,8 @@ import com.zyvioip.app.ui.HomeRepositoryApi
 import com.zyvioip.app.ui.HomeSettings
 import com.zyvioip.app.util.classifyIpType
 import com.zyvioip.app.util.isValidIp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -70,9 +72,13 @@ class IpLookupRepository(
     override val error: StateFlow<String?> = _error.asStateFlow()
     override val homeSettings: StateFlow<HomeSettings> = _homeSettings.asStateFlow()
 
-    override suspend fun initialize() {
+    override suspend fun initialize() = withContext(Dispatchers.IO) {
+        // 整个初始化都在 IO 线程：
+        // 之前跑在 viewModelScope 默认的 Main 上，settings.load 与
+        // cache.preload（全表 JSON 解码）都压在主线程，启动瞬间明显卡顿。
         settings = settingsRepository?.load() ?: settings
-        // 把持久化的设置回填给 UI，否则设置页永远显示编译期默认值（改了开关回来又变回去）。
+
+        // 把持久化的设置回填给 UI，否则设置页永远显示编译期默认值
         _homeSettings.value = HomeSettings(
             timeoutMs = settings.timeoutMs,
             cacheTtlMinutes = settings.cacheTtlMs / 60_000L,
@@ -80,20 +86,25 @@ class IpLookupRepository(
             showFlags = settings.showFlags,
             notifications = settings.notifications,
         )
-        // 先把本轮要用的供应商卡片渲染出来（PENDING），别让用户盯着空白页等 IP 探测。
+
+        // 先把本轮要用的供应商卡片渲染出来（PENDING），别让用户盯着空白页等 IP 探测
         _providerStates.value = settings.activeIds.distinct().mapNotNull { id ->
             ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
         }
-        // 先把持久缓存一次性灌进内存，后续查询路径不再碰磁盘（详见 DataStoreCacheRepository.preload）
+
+        // 持久缓存一次性灌进内存，后续查询路径不再碰磁盘
         (cache as? DataStoreCacheRepository)?.preload()
-        val cached = cache.getLocalIp(LOCAL_CACHE_KEY, LocalIpRepository.LOCAL_CACHE_TTL_MS)?.takeIf(::isValidIp)
+
+        val cached = cache.getLocalIp(LOCAL_CACHE_KEY, LocalIpRepository.LOCAL_CACHE_TTL_MS)
+            ?.takeIf(::isValidIp)
         val detected = cached ?: localIpRepository.detect()
         if (detected != null) {
             _localIp.value = detected
             if (cached != detected) cache.putLocalIp(LOCAL_CACHE_KEY, detected)
         }
         currentIp = _localIp.value
-        // 尊重“启动时自动查询本机 IP”开关：关掉时只显示本机 IP，不发任何请求。
+
+        // 尊重“启动时自动查询本机 IP”开关
         if (settings.autoLookup) currentIp?.let { search(it) }
     }
 
@@ -140,9 +151,12 @@ class IpLookupRepository(
         }
 
         try {
+            // async 的调度器跟随外层上下文（Main），所以显式指定 IO：
+            // 每个 query 内部已经切了 IO 做网络与解析，这里再加一层是为了让
+            // 编排、结果收集与 Semaphore 等待也不占用主线程。
             val results = coroutineScope {
                 active.map { spec ->
-                    async {
+                    async(Dispatchers.IO) {
                         // 共享闸门：无论同时有几个查询在跑，全局并发都受控
                         requestGate.withPermit { query(spec.id, cleanIp, bypassCache = false) }
                     }
@@ -150,13 +164,14 @@ class IpLookupRepository(
             }
             // 期间若已有更新的查询，直接放弃本次结果（状态归新的那次管）
             if (generation != searchGeneration) return
-            stateMutex.withLock {
+            val merged = stateMutex.withLock {
                 // 合并而非整体替换：期间用户可能新增/删除过供应商
                 var next = _providerStates.value
                 results.forEach { next = upsert(next, it) }
                 _providerStates.value = next
-                rebuild(cleanIp, next)
+                next
             }
+            rebuild(cleanIp, merged)
         } catch (e: CancellationException) {
             // 被新一代查询取消：如果此时没有更新的查询在跑（例如页面销毁），
             // 必须把卡片从 LOADING 恢复成待命，否则界面会永远转圈。
@@ -191,21 +206,25 @@ class IpLookupRepository(
         // 期间如果用户又发起了新的整体查询，就不要用这次单源结果去覆盖它
         if (generation != searchGeneration) return
 
-        stateMutex.withLock {
-            val next = upsert(_providerStates.value, result)
-            _providerStates.value = next
-            rebuild(ip, next)
+        val next = stateMutex.withLock {
+            val merged = upsert(_providerStates.value, result)
+            _providerStates.value = merged
+            merged
         }
+        rebuild(ip, next)
     }
 
     override suspend fun removeProvider(providerId: String) {
         settings = settings.copy(activeIds = settings.activeIds - providerId)
         settingsRepository?.save(settings)
-        stateMutex.withLock {
-            val next = _providerStates.value.filterNot { it.providerId == providerId }
-            _providerStates.value = next
-            currentIp?.let { rebuild(it, next) }
+        val next = stateMutex.withLock {
+            val filtered = _providerStates.value.filterNot { it.providerId == providerId }
+            _providerStates.value = filtered
+            filtered
         }
+        // 锁外做聚合：rebuild 是 suspend（内部切 IO），不应持锁执行
+        val ip = currentIp
+        if (ip != null) rebuild(ip, next)
     }
 
     override suspend fun addProvider(providerId: String) {
@@ -238,11 +257,12 @@ class IpLookupRepository(
         val result = query(spec.id, ip, bypassCache = false)
         if (generation != searchGeneration) return
 
-        stateMutex.withLock {
-            val next = upsert(_providerStates.value, result)
-            _providerStates.value = next
-            rebuild(ip, next)
+        val next = stateMutex.withLock {
+            val merged = upsert(_providerStates.value, result)
+            _providerStates.value = merged
+            merged
         }
+        rebuild(ip, next)
     }
 
     /**
@@ -332,8 +352,14 @@ class IpLookupRepository(
         // 表现就是「冷启动时全部失败，手动点一下查询又全部成功」——
         // 首次冷 DNS 本来就慢，串行叠加后几乎必然撞上超时。
         // 并发安全改由「状态写回时按 providerId 合并」保证（见 search / retry）。
+        // 整段网络请求 + JSON 解析 + 缓存写入全部放到 IO 线程。
+        // 之前 query() 被 search() 里的 async 直接调用，而 search() 跑在
+        // viewModelScope 的 Main 上 —— 6 个源并发时，6 份响应体的 JSON 解析
+        // （ipto.to 单条 44 个字段）全挤在主线程，滚动和首屏都明显掉帧。
         return try {
-            val outcome = ProviderCatalog.create(spec, config).lookup(ip, settings.timeoutMs)
+            val outcome = withContext(Dispatchers.IO) {
+                ProviderCatalog.create(spec, config).lookup(ip, settings.timeoutMs)
+            }
             if (outcome.status == ProviderStatus.SUCCESS) {
                 // 注意：cache 里必须把风险分/住宅属性一起存下，
                 // 否则命中缓存后这些字段会变成 null —— 表现为“第一次查有分，刷新一下就没了”。
@@ -369,7 +395,9 @@ class IpLookupRepository(
         }
     }
 
-    private fun rebuild(ip: String, results: List<ProviderOutcome>) {
+    // 聚合计算（多次 map/filter + 构建 ProviderState）放到 IO，
+    // 避免 6 次结果连写时把主线程占满。
+    private suspend fun rebuild(ip: String, results: List<ProviderOutcome>) = withContext(Dispatchers.IO) {
         var signals = IpSignals(ip = ip)
         val risks = mutableListOf<Int>()
         for (result in results) {
