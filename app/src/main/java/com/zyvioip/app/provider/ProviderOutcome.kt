@@ -1,6 +1,18 @@
 package com.zyvioip.app.provider
 
-/** Result shape shared by the provider slice and the core repository. */
+import androidx.compose.runtime.Immutable
+
+/**
+ * Result shape shared by the provider slice and the core repository.
+ *
+ * @Immutable 是必要的：本类含 Set/Map 字段，Compose 编译器默认把集合接口
+ * 视为 unstable（无法保证调用方不会修改），于是持有它的每个 Composable
+ * 都无法跳过重组 —— 列表滚动时每个卡片每帧都在重新组合。
+ *
+ * 这里的所有集合字段在构造后从不修改（repository 里都是 copy/新建），
+ * 因此标记 @Immutable 是成立的，不是单纯压编译器警告。
+ */
+@Immutable
 data class ProviderOutcome(
     val providerId: String,
     val status: ProviderStatus = com.zyvioip.app.provider.ProviderStatus.LOADING,

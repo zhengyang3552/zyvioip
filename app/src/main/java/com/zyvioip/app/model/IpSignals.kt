@@ -1,11 +1,13 @@
 package com.zyvioip.app.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 
 
 /** Normalised location and abuse signals merged from every successful provider. */
 @Serializable
+@Immutable
 data class IpSignals(
     val ip: String? = null,
     val country: String? = null,

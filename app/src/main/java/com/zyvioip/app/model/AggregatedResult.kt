@@ -1,14 +1,17 @@
 package com.zyvioip.app.model
 
+import androidx.compose.runtime.Immutable
 import com.zyvioip.app.provider.ProviderOutcome
 
 /** A provider spec paired with the provider slice's current outcome. */
+@Immutable
 data class ProviderState(
     val spec: ProviderSpec,
     val outcome: ProviderOutcome,
 )
 
 /** Combined view returned by the lookup repository. */
+@Immutable
 data class AggregatedResult(
     val ip: String,
     val signals: IpSignals = IpSignals(ip = ip),

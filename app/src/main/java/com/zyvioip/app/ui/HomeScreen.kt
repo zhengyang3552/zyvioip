@@ -234,62 +234,15 @@ private fun HomeContent(
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         // ---- 搜索栏 ----
+        // 抽成独立 composable：query 每敲一个字都会变，留在 HomeContent 里
+        // 会让整个 LazyColumn 的 content lambda 重建（所有卡片跟着重组）。
         item(key = "search") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    placeholder = { Text("输入 IPv4 / IPv6", style = MaterialTheme.typography.bodyLarge) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                    // MD3 search bar 圆角为 full
-                    shape = CircleShape,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
-                    keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "清空", modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    },
-                )
-                // 圆形图标按钮（56dp），与输入框同高。
-                // 去掉文字标签：输入框已有「输入 IPv4 / IPv6」提示，按钮再加「查询」
-                // 属于重复表达，且方形文字按钮和胶囊输入框视觉上不对称。
-                FilledIconButton(
-                    onClick = onSubmit,
-                    enabled = !loading,
-                    shape = CircleShape,
-                    modifier = Modifier.size(56.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                ) {
-                    if (loading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = "查询",
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-            }
+            SearchBar(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSubmit = onSubmit,
+                loading = loading,
+            )
         }
 
         // ---- 本机 IP ----
@@ -385,6 +338,70 @@ private fun HomeContent(
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(Spacing.sm))
                 Text("添加供应商", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+/**
+ * 搜索栏。独立成一个 composable，让 query 的高频变化只重组这里。
+ */
+@Composable
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    loading: Boolean,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = { Text("输入 IPv4 / IPv6", style = MaterialTheme.typography.bodyLarge) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+            shape = CircleShape,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
+            keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "清空", modifier = Modifier.size(18.dp))
+                    }
+                }
+            },
+        )
+        // 圆形图标按钮（56dp），与输入框同高
+        FilledIconButton(
+            onClick = onSubmit,
+            enabled = !loading,
+            shape = CircleShape,
+            modifier = Modifier.size(56.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = "查询",
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
     }

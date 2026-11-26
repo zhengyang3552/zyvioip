@@ -62,7 +62,6 @@ internal fun ProviderDismissItem(
         targetValue = if (revealed) -actionWidthPx else 0f,
         label = "provider-card-offset",
     )
-    val currentOffset = if (offsetX != 0f) offsetX else animatedOffset
 
     Box(modifier = modifier.fillMaxWidth()) {
         // 背景层：圆形删除按钮，只有卡片被推开后才可点。
@@ -78,7 +77,9 @@ internal fun ProviderDismissItem(
                     revealed = false
                     onRemove(state.providerId)
                 },
-                enabled = revealed || currentOffset < -actionWidthPx * 0.3f,
+                // 只依赖 revealed 这个布尔状态，不再读每帧变化的浮点位移。
+                // 之前 enabled 依赖 currentOffset，拖动时会让整个 item 每帧重组。
+                enabled = revealed,
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.error,
@@ -98,7 +99,14 @@ internal fun ProviderDismissItem(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationX = currentOffset }
+                // 关键：把 offsetX 的读取放进 graphicsLayer 的 lambda 内。
+                // 现在 translationX 依赖的是 State（而非外部计算好的 Float 值），
+                // 拖动时只会触发 draw 阶段重绘，不会引起组合阶段的整卡重组。
+                // 之前在组合期读 currentOffset，每一帧拖动都会让整个 item 重新组合，
+                // 列表滑动/左滑时明显掉帧。
+                .graphicsLayer {
+                    translationX = if (offsetX != 0f) offsetX else animatedOffset
+                }
                 // 只响应“明显的横向滑动”：onHorizontalDrag 只有在横向位移超过
                 // 系统的 touch slop、且横向优先时才会触发，纵向手势会留给内部滚动容器。
                 // 这样展开后的字段列表可以正常上下滚动，不会被左滑手势吃掉。
