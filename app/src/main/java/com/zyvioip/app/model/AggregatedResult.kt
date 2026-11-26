@@ -30,8 +30,11 @@ data class AggregatedResult(
     val origin: OriginVerdict? = null,
     /** 所有源给出的来源判定明细，UI 可展示“谁说了什么” */
     val originVerdicts: List<OriginVerdict> = emptyList(),
-    val completedAtMillis: Long = System.currentTimeMillis(),
 )
+
+// 注意：不要往 AggregatedResult 里加 completedAtMillis 之类每次都变的字段。
+// StateFlow 的去重依赖 data class 的 equals —— 带时间戳会让每次 rebuild
+// 都判定为「内容变了」，SummaryCard 与整个列表必然重组。
 
 enum class IpType(val label: String) {
     VPN("VPN"),

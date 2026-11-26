@@ -201,7 +201,6 @@ fun HomeScreen(
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun HomeContent(
     query: String,
@@ -317,13 +316,17 @@ private fun HomeContent(
 
         // ---- 供应商卡片 ----
         items(providerStates, key = { it.providerId }) { state ->
+            // 不使用 animateItemPlacement()。
+            //
+            // providerStates 每次查询结束后都是全新的 List，即使内容完全没变，
+            // LazyColumn 也会认为条目发生位移并给所有卡片同时播放位移动画。
+            // 参照 ZYNotificationHistory 的做法（它显式设了
+            // supportsChangeAnimations = false，注释写「避免整行闪烁」）：
+            // 卡片保持静态，不做位移过渡。
             ProviderDismissItem(
                 state = state,
                 onRetry = onRetry,
                 onRemove = onRemove,
-                modifier = Modifier
-                    // 增删时让相邻卡片平滑让位，而不是瞬间跳变
-                    .animateItemPlacement(),
             )
         }
 

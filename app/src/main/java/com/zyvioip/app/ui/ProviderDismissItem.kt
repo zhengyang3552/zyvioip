@@ -1,6 +1,7 @@
 package com.zyvioip.app.ui
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -58,10 +59,17 @@ internal fun ProviderDismissItem(
     // 卡片被移出列表时把偏移归零，避免复用错位
     LaunchedEffect(Unit) { offsetX = 0f }
 
-    val animatedOffset by animateFloatAsState(
-        targetValue = if (revealed) -actionWidthPx else 0f,
-        label = "provider-card-offset",
-    )
+    // 用 Animatable 而不是 animateFloatAsState：
+    // 后者的 `by` 委托会在**组合阶段**读取当前值，动画每帧都触发重组。
+    // Animatable 只在下面 graphicsLayer 的 lambda（draw 阶段）里读 .value，
+    // 动画期间不产生任何组合，大幅降低滑动/回弹时的开销。
+    val animatedOffset = remember(state.providerId) { Animatable(0f) }
+    LaunchedEffect(revealed, actionWidthPx) {
+        animatedOffset.animateTo(
+            targetValue = if (revealed) -actionWidthPx else 0f,
+            animationSpec = tween(durationMillis = 220),
+        )
+    }
 
     Box(modifier = modifier.fillMaxWidth()) {
         // 背景层：圆形删除按钮，只有卡片被推开后才可点。
@@ -105,7 +113,8 @@ internal fun ProviderDismissItem(
                 // 之前在组合期读 currentOffset，每一帧拖动都会让整个 item 重新组合，
                 // 列表滑动/左滑时明显掉帧。
                 .graphicsLayer {
-                    translationX = if (offsetX != 0f) offsetX else animatedOffset
+                    // 两者都在 draw 阶段读取，不触发组合
+                    translationX = if (offsetX != 0f) offsetX else animatedOffset.value
                 }
                 // 只响应“明显的横向滑动”：onHorizontalDrag 只有在横向位移超过
                 // 系统的 touch slop、且横向优先时才会触发，纵向手势会留给内部滚动容器。

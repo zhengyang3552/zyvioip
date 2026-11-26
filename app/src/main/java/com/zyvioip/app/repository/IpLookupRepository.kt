@@ -462,7 +462,7 @@ class IpLookupRepository(
                 }
             }
 
-        _aggregate.value = com.zyvioip.app.model.AggregatedResult(
+        val next = com.zyvioip.app.model.AggregatedResult(
             ip = ip,
             signals = signals,
             providerStates = results.mapNotNull { result ->
@@ -494,6 +494,9 @@ class IpLookupRepository(
             origin = com.zyvioip.app.model.resolveOrigin(verdicts),
             originVerdicts = verdicts,
         )
+        // 内容未变就不写：StateFlow 用 equals 判重，
+        // 避免无意义地通知 UI 重组。
+        if (next != _aggregate.value) _aggregate.value = next
     }
 
     private fun cacheKey(ip: String, id: String, key: String, email: String): String =
