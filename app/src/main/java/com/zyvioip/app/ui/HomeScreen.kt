@@ -303,7 +303,7 @@ private fun HomeContent(
                     if (refreshingIp) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
-                        IconButton(onClick = onRefreshLocalIp, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onRefreshLocalIp, modifier = Modifier.size(48.dp)) {
                             Icon(
                                 imageVector = Icons.Filled.Refresh,
                                 contentDescription = "刷新本机 IP",
@@ -358,7 +358,14 @@ private fun HomeContent(
 
         // ---- 供应商卡片 ----
         items(providerStates, key = { it.providerId }) { state ->
-            ProviderDismissItem(state, onRetry = onRetry, onRemove = onRemove)
+            ProviderDismissItem(
+                state = state,
+                onRetry = onRetry,
+                onRemove = onRemove,
+                modifier = Modifier
+                    // 增删时让相邻卡片平滑让位，而不是瞬间跳变
+                    .animateItemPlacement(),
+            )
         }
 
         // ---- 底部按钮 ----

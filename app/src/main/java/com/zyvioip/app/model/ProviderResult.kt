@@ -1,6 +1,9 @@
 package com.zyvioip.app.model
 
+import kotlinx.serialization.Serializable
+
 /** Outcome of querying one provider. Failures never expose response bodies or keys. */
+@Serializable
 data class ProviderResult(
     val providerId: String,
     val status: ProviderStatus = ProviderStatus.PENDING,

@@ -97,7 +97,7 @@ fun ProviderCard(
                 IconButton(
                     onClick = { onRetry(spec.id) },
                     enabled = status != ProviderStatus.LOADING,
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(48.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
@@ -112,7 +112,7 @@ fun ProviderCard(
                 }
                 // 折叠/展开：只有拿到明细时才显示箭头
                 if (hasDetail) {
-                    IconButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                             contentDescription = if (expanded) "收起 ${spec.name}" else "展开 ${spec.name} 的全部字段",

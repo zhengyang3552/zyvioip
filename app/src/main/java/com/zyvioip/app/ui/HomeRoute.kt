@@ -6,10 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
 import com.zyvioip.app.ZyvioIpApp
@@ -20,21 +21,23 @@ fun HomeRoute(modifier: Modifier = Modifier) {
     val context = LocalContext.current.applicationContext
     val repository = remember { (context as ZyvioIpApp).repository }
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(repository))
-    val query by viewModel.query.collectAsState()
-    val aggregate by viewModel.repository.aggregate.collectAsState()
-    val providerStates by viewModel.repository.providerStates.collectAsState()
-    val localIp by viewModel.repository.localIp.collectAsState()
-    val loading by viewModel.repository.loading.collectAsState()
-    val repoError by viewModel.repository.error.collectAsState()
-    val startupError by viewModel.startupError.collectAsState()
+    val query by viewModel.query.collectAsStateWithLifecycle()
+    val aggregate by viewModel.repository.aggregate.collectAsStateWithLifecycle()
+    val providerStates by viewModel.repository.providerStates.collectAsStateWithLifecycle()
+    val localIp by viewModel.repository.localIp.collectAsStateWithLifecycle()
+    val loading by viewModel.repository.loading.collectAsStateWithLifecycle()
+    val repoError by viewModel.repository.error.collectAsStateWithLifecycle()
+    val startupError by viewModel.startupError.collectAsStateWithLifecycle()
     // 启动异常优先展示，普通查询错误其次
     val error = startupError ?: repoError
-    val settings by viewModel.settings.collectAsState()
-    val configs by viewModel.configs.collectAsState()
-    val refreshingIp by viewModel.refreshingIp.collectAsState()
-    var settingsOpen by remember { mutableStateOf(false) }
-    var pendingOpen by remember { mutableStateOf(false) }
-    var configProviderId by remember { mutableStateOf<String?>(null) }
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val configs by viewModel.configs.collectAsStateWithLifecycle()
+    val refreshingIp by viewModel.refreshingIp.collectAsStateWithLifecycle()
+    // 用 rememberSaveable：转屏或进程被回收后能恢复到原页面，
+    // 否则从设置页返回会莫名回到首页。
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    var pendingOpen by rememberSaveable { mutableStateOf(false) }
+    var configProviderId by rememberSaveable { mutableStateOf<String?>(null) }
 
     // 网络切换（Wi-Fi <-> 移动网络）后自动重新探测本机 IP；
     // 只有 IP 真的变了才会重查，避免无谓请求。

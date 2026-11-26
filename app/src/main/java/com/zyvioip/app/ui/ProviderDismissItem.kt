@@ -46,6 +46,7 @@ internal fun ProviderDismissItem(
     state: ProviderOutcome,
     onRetry: (String) -> Unit,
     onRemove: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val spec = ProviderCatalog.byId(state.providerId) ?: return
     val actionWidthPx = with(LocalDensity.current) { ACTION_WIDTH.toPx() }
@@ -63,7 +64,7 @@ internal fun ProviderDismissItem(
     )
     val currentOffset = if (offsetX != 0f) offsetX else animatedOffset
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = modifier.fillMaxWidth()) {
         // 背景层：圆形删除按钮，只有卡片被推开后才可点。
         Box(
             modifier = Modifier
