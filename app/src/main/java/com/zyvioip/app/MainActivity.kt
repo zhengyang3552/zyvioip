@@ -28,6 +28,7 @@ import com.zyvioip.app.repository.NetworkWatcher
 import com.zyvioip.app.repository.flags
 import com.zyvioip.app.ui.MainViewModel
 import com.zyvioip.app.ui.ProviderAdapter
+import com.zyvioip.app.ui.SingleItemAdapter
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
