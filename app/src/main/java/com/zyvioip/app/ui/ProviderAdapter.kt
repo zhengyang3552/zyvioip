@@ -71,7 +71,17 @@ class ProviderAdapter(
 
     inner class VH(private val b: ItemProviderBinding) : RecyclerView.ViewHolder(b.root) {
 
+        /** 供滑动回调平移的卡片层（不含背景删除按钮）。 */
+        val cardView: android.view.View get() = b.card
+
         init {
+            b.btnDelete.setOnClickListener {
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    b.card.translationX = 0f
+                    onRemove(getItem(pos).providerId)
+                }
+            }
             b.btnRetry.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) onRetry(getItem(pos).providerId)
@@ -83,6 +93,8 @@ class ProviderAdapter(
         }
 
         fun bind(item: ProviderOutcome) {
+            // 复用视图时复位滑动位移，否则会带着上一张卡的偏移
+            b.card.translationX = 0f
             val spec = ProviderCatalog.byId(item.providerId)
             b.tvName.text = spec?.name ?: item.providerId
 

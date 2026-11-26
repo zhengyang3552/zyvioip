@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -15,14 +14,24 @@ import com.zyvioip.app.databinding.ActivityProviderConfigBinding
 import com.zyvioip.app.provider.ProviderCatalog
 import com.zyvioip.app.provider.ProviderConfig
 import com.zyvioip.app.ui.MainViewModel
+import com.zyvioip.app.ui.SharedViewModel
 import kotlinx.coroutines.launch
 
 /** 单个供应商的配置表单。 */
 class ProviderConfigActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityProviderConfigBinding
-    private val viewModel: MainViewModel by viewModels {
-        MainViewModel.Factory((application as ZyvioIpApp).repository)
+    /**
+     * 与 MainActivity 共用同一个 ViewModel 实例。
+     *
+     * 之前用默认作用域（Activity），每次进入设置页都会新建一个 ViewModel，
+     * 其 init 会重新执行 initialize()：本机 IP 探测 + 全源查询，
+     * 所以「点设置会卡一下再跳转」。
+     * 改为 application 作用域后复用主界面已加载好的状态。
+     */
+    /** 与主界面共用同一实例，避免每次进入都重新 initialize()。 */
+    private val viewModel: MainViewModel by lazy {
+        SharedViewModel.get((application as ZyvioIpApp).repository)
     }
     private val providerId: String by lazy { intent.getStringExtra(EXTRA_ID).orEmpty() }
 

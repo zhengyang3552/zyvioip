@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -28,6 +27,7 @@ import com.zyvioip.app.repository.NetworkWatcher
 import com.zyvioip.app.repository.flags
 import com.zyvioip.app.ui.MainViewModel
 import com.zyvioip.app.ui.ProviderAdapter
+import com.zyvioip.app.ui.SharedViewModel
 import com.zyvioip.app.ui.SingleItemAdapter
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -45,8 +45,9 @@ class MainActivity : AppCompatActivity() {
     private val header: ViewHeaderBinding?
         get() = headerAdapter.currentBinding()
 
-    private val viewModel: MainViewModel by viewModels {
-        MainViewModel.Factory((application as ZyvioIpApp).repository)
+    /** 与其他页面共用同一实例（见 SharedViewModel）。 */
+    private val viewModel: MainViewModel by lazy {
+        SharedViewModel.get((application as ZyvioIpApp).repository)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

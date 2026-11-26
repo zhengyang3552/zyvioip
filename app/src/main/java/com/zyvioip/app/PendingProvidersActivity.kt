@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -22,6 +21,7 @@ import com.zyvioip.app.provider.ProviderConfig
 import com.zyvioip.app.provider.ProviderSpec
 import com.zyvioip.app.repository.HomeRepositoryApi
 import com.zyvioip.app.ui.MainViewModel
+import com.zyvioip.app.ui.SharedViewModel
 import kotlinx.coroutines.launch
 
 /** 添加供应商：列出未启用的源，按本地已保存的凭据判断是否可直接添加。 */
@@ -29,8 +29,17 @@ class PendingProvidersActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityPendingBinding
     private lateinit var adapter: Adapter
-    private val viewModel: MainViewModel by viewModels {
-        MainViewModel.Factory((application as ZyvioIpApp).repository)
+    /**
+     * 与 MainActivity 共用同一个 ViewModel 实例。
+     *
+     * 之前用默认作用域（Activity），每次进入设置页都会新建一个 ViewModel，
+     * 其 init 会重新执行 initialize()：本机 IP 探测 + 全源查询，
+     * 所以「点设置会卡一下再跳转」。
+     * 改为 application 作用域后复用主界面已加载好的状态。
+     */
+    /** 与主界面共用同一实例，避免每次进入都重新 initialize()。 */
+    private val viewModel: MainViewModel by lazy {
+        SharedViewModel.get((application as ZyvioIpApp).repository)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

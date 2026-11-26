@@ -61,7 +61,12 @@ class IpLookupRepository(
     override val error: StateFlow<String?> = _error.asStateFlow()
     override val homeSettings: StateFlow<HomeSettings> = _homeSettings.asStateFlow()
 
+    /** 防止重复初始化：多次进入页面时不应重复探测 IP、重复查询。 */
+    @Volatile private var initialized = false
+
     override suspend fun initialize() = withContext(Dispatchers.IO) {
+        if (initialized) return@withContext
+        initialized = true
         // 先按「默认供应商」把卡片渲染出来，再读 DataStore。
         //
         // 之前要等 settings.load() 完成（首次启动 DataStore 要创建文件，
@@ -253,16 +258,15 @@ class IpLookupRepository(
     override suspend fun addProvider(providerId: String) {
         val spec = ProviderCatalog.byId(providerId) ?: return
 
-        // 先去重并立刻插入 PENDING，让卡片马上出现 ——
-        // 之前这里是“等网络请求返回后才追加”，用户点完添加会卡住几百毫秒到数秒，
-        // 期间连点或并发的其它写入还会把同一项追加两次，
-        // 最终导致 LazyColumn 出现重复 key 直接崩溃。
+        // 先去重并立刻插入 PENDING，让卡片马上出现。
+        // 位置用 insertInOrder 决定（而非一律追加到末尾）——
+        // 这样「撤销删除」后卡片回到原来的位置，而不是跳到列表最后。
         val alreadyPresent = stateMutex.withLock {
             val present = _providerStates.value.any { it.providerId == providerId }
             if (!present) {
-                _providerStates.value = upsert(
-                    _providerStates.value,
-                    ProviderOutcome(spec.id, ProviderStatus.PENDING),
+                _providerStates.value = insertInOrder(
+                    current = _providerStates.value,
+                    incoming = ProviderOutcome(spec.id, ProviderStatus.PENDING),
                 )
             }
             present
@@ -287,6 +291,30 @@ class IpLookupRepository(
         }
         rebuild(ip, next)
     }
+
+    /**
+     * 插入到「与当前列表一致的顺序」中。
+     *
+     * activeIds 是 Set，删除再添加会被移到最后；但用户期望撤销后回到原位。
+     * 这里用 ProviderCatalog 的声明顺序作稳定参照：把新条目插到
+     * 「所有排在它前面且已在列表中」的条目之后。
+     */
+    private fun insertInOrder(
+        current: List<ProviderOutcome>,
+        incoming: ProviderOutcome,
+    ): List<ProviderOutcome> {
+        val order = ProviderCatalog.all.map { it.id }
+        val incomingIdx = order.indexOf(incoming.providerId)
+        if (incomingIdx < 0) return current + incoming
+
+        var insertAt = 0
+        current.forEachIndexed { i, item ->
+            val idx = order.indexOf(item.providerId)
+            if (idx >= 0 && idx < incomingIdx) insertAt = i + 1
+        }
+        return current.toMutableList().also { it.add(insertAt, incoming) }
+    }
+
 
     /**
      * 按 providerId 合并：存在则替换，不存在则**追加**。

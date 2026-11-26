@@ -4,10 +4,31 @@
   设计要点（参照 ZYNotificationHistory）：整行只有固定几个 TextView，
   展开的字段列表用独立的 LinearLayout 动态填充，默认 GONE 不参与测量。
 -->
-<com.google.android.material.card.MaterialCardView
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="@dimen/space_xs">
+
+    <!-- 背景层：删除按钮，卡片左滑后露出 -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnDelete"
+        style="@style/Widget.Material3.Button.IconButton.Filled"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="@dimen/space_sm"
+        android:contentDescription="@string/action_remove"
+        app:backgroundTint="@color/status_error"
+        app:cornerRadius="28dp"
+        app:icon="@drawable/ic_delete"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp"
+        app:iconTint="@android:color/white" />
+
+<com.google.android.material.card.MaterialCardView
     android:id="@+id/card"
     style="@style/Widget.ZyvioIp.Card"
     android:layout_width="match_parent"
@@ -102,3 +123,4 @@
             android:visibility="gone" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
+</FrameLayout>
