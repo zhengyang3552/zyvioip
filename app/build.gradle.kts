@@ -16,9 +16,9 @@ android {
         // 本地构建回退到基础值，仅供调试。
         val ciBuild = (System.getenv("BUILD_NUMBER") ?: "").trim()
         versionCode = if (ciBuild.matches(Regex("\\d+"))) 100 + ciBuild.toInt() else 100
-        // versionName：tag 构建用 tag 名（v1.0.3 -> 1.0.3），其余回退到下面的默认值。
+        // versionName：tag 构建用 tag 名（v0.0.1 -> 0.0.1），其余回退到默认值。
         val ciName = (System.getenv("VERSION_NAME") ?: "").trim().removePrefix("v")
-        versionName = ciName.ifBlank { "1.0.3" }
+        versionName = ciName.ifBlank { "0.0.1" }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
