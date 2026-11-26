@@ -1,4 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ZyvioIP</string>
+
+    <string name="hint_ip">输入 IPv4 / IPv6</string>
+    <string name="hint_swipe_remove">左滑卡片可移除供应商</string>
+    <string name="loading">正在查询…</string>
+
+    <string name="action_search">查询</string>
+    <string name="action_settings">设置</string>
+    <string name="action_refresh_ip">刷新本机 IP</string>
+    <string name="action_retry">重试</string>
+    <string name="action_expand">展开全部字段</string>
+    <string name="action_add_provider">添加供应商</string>
+    <string name="action_save">保存</string>
+    <string name="action_remove">移除</string>
+    <string name="action_undo">撤销</string>
+
+    <string name="label_risk">风险</string>
+    <string name="label_local_ip">本机 IP %1$s</string>
+    <string name="msg_no_score">没有源提供风险评分：免费接口多数只给归属信息</string>
+    <string name="msg_empty_providers">还没有启用任何供应商\n点下方按钮添加</string>
+    <string name="msg_removed">已移除 %1$s</string>
+
+    <string name="status_pending">等待中</string>
+    <string name="status_loading">查询中</string>
+    <string name="status_success">成功</string>
+    <string name="status_error">失败</string>
+    <string name="status_needs_config">需要配置</string>
+    <string name="status_skipped">已跳过</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_privacy">密钥只保存在本机，不会上传到除对应服务商以外的任何地方。</string>
+    <string name="settings_keys">供应商密钥</string>
+    <string name="settings_keys_hint">填好后点右侧“保存”，不会边输入边写盘。</string>
+    <string name="settings_reveal">显示密钥明文</string>
+    <string name="settings_reveal_on">当前：明文可见，注意旁人窥屏</string>
+    <string name="settings_reveal_off">当前：已用圆点遮挡</string>
+    <string name="settings_network">请求与缓存</string>
+    <string name="settings_timeout">超时（秒）</string>
+    <string name="settings_ttl">缓存有效期（分钟，0 = 不缓存）</string>
+    <string name="settings_auto_lookup">启动时自动查询本机 IP</string>
+    <string name="settings_show_flags">显示风险标记</string>
+    <string name="settings_notifications">结果通知</string>
+    <string name="settings_clear_cache">清除缓存</string>
+    <string name="settings_about">关于 ZyvioIP：本地聚合多家公开 IP 情报服务，仅用于网络安全自查，结果仅供参考。</string>
+
+    <string name="pending_title">添加供应商</string>
+    <string name="pending_subtitle">选择并配置后即可加入查询。密钥只保存在本机。</string>
+    <string name="pending_configured">配置状态：可直接添加</string>
+    <string name="pending_need_config">配置状态：需要配置</string>
+    <string name="pending_all_added">所有供应商都已添加。</string>
+    <string name="pending_add">添加</string>
+    <string name="pending_adding">添加中…</string>
+    <string name="pending_configure">配置</string>
+    <string name="pending_reconfigure">修改配置</string>
+
+    <string name="config_key">API Key</string>
+    <string name="config_email">联系邮箱</string>
+    <string name="field_count">%1$d 个字段</string>
+    <string name="config_no_need">该供应商无需配置，可直接添加。</string>
 </resources>

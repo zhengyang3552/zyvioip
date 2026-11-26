@@ -3,7 +3,7 @@ package com.zyvioip.app
 import com.zyvioip.app.model.ProviderResult
 import com.zyvioip.app.repository.CacheRepository
 import com.zyvioip.app.repository.IpLookupRepository
-import com.zyvioip.app.ui.HomeSettings
+import com.zyvioip.app.repository.HomeSettings
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

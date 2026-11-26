@@ -63,19 +63,6 @@ android {
         }
     }
 
-    /**
-     * 兜底：即使将来某个依赖把 lifecycle 拉到 2.8.x，也强制锁在 2.7.0。
-     * 理由是当前 compose-ui 1.6.8 无法满足 2.8.x 对 LocalLifecycleOwner 的要求，
-     * 一旦被顶上去就是启动崩溃。
-     */
-    configurations.all {
-        resolutionStrategy {
-            force("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-            force("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-            force("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -83,20 +70,26 @@ android {
 
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
-
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+    buildFeatures {
+        viewBinding = true
+    }
 
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
-    implementation(composeBom)
-    androidTestImplementation(composeBom)
-
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.0")
+
+    // ---- View 系统（XML + RecyclerView）----
+    // 弃用 Compose：本项目的数据刷新模式（每次查询整体替换 List）
+    // 在 Compose 下极难保证「内容未变就不重组」，反复出现持续掉帧。
+    // RecyclerView + DiffUtil 由框架强制做差异比对，同样数据不会重绘。
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.activity:activity-ktx:1.9.0")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
     /**
      * 全部 lifecycle 组件固定 2.7.0。
      *
@@ -115,24 +108,16 @@ dependencies {
      * 升级 Compose BOM 到 2024.09+ 之后，这里才能一起升到 2.8.x。
      */
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

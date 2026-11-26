@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!--
-      原来继承 android:Theme.Material.Light.NoActionBar（框架主题）：
-        * 深色模式下启动瞬间闪白；
-        * 与 Compose Material3 无关。
-      改用框架 Material.NoActionBar 作为基底，深浅色由 values / values-night 两套资源分别覆盖。
+      View 系统主题：使用 Material3.DayNight，深浅色由 values-night 自动切换，
+      Material Components 会提供 ?attr/colorSurface 等语义色。
     -->
-    <style name="Theme.ZyvioIp" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.ZyvioIp" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/app_window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- 列表卡片 -->
+    <style name="Widget.ZyvioIp.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerLow</item>
+        <item name="strokeWidth">0dp</item>
     </style>
 </resources>

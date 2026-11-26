@@ -6,8 +6,8 @@ import com.zyvioip.app.provider.ProviderCatalog
 import com.zyvioip.app.provider.ProviderConfig
 import com.zyvioip.app.provider.ProviderOutcome
 import com.zyvioip.app.provider.ProviderStatus
-import com.zyvioip.app.ui.HomeRepositoryApi
-import com.zyvioip.app.ui.HomeSettings
+import com.zyvioip.app.repository.HomeRepositoryApi
+import com.zyvioip.app.repository.HomeSettings
 import com.zyvioip.app.util.classifyIpType
 import com.zyvioip.app.util.isValidIp
 import kotlinx.coroutines.Dispatchers

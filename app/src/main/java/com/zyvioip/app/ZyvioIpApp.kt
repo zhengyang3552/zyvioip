@@ -4,7 +4,6 @@ import android.app.Application
 import com.zyvioip.app.repository.DataStoreCacheRepository
 import com.zyvioip.app.repository.IpLookupRepository
 import com.zyvioip.app.repository.SettingsRepository
-import com.zyvioip.app.ui.HomeRepositoryApi
 
 /**
  * Application container for the repository.

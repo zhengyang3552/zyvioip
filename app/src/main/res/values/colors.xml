@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 启动窗口背景，和 Theme.kt 里的 LightColors.background 保持一致，避免闪白 -->
     <color name="app_window_background">#F2F3F7</color>
+    <color name="status_success">#2E9E5B</color>
+    <color name="status_error">#D64B4B</color>
+    <color name="status_warn">#D08A1E</color>
+    <color name="status_neutral">#8A8F98</color>
+    <color name="field_label">#8A8F98</color>
 </resources>

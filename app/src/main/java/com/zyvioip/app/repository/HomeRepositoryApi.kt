@@ -1,18 +1,23 @@
-package com.zyvioip.app.ui
+package com.zyvioip.app.repository
 
 import com.zyvioip.app.model.AggregatedResult
 import com.zyvioip.app.provider.ProviderConfig
 import com.zyvioip.app.provider.ProviderOutcome
 import kotlinx.coroutines.flow.StateFlow
 
-/** Contract implemented by the core lookup repository. */
+/**
+ * 数据层对外合约。UI 层（View 系统）通过它读取状态、触发动作。
+ *
+ * 从原 ui 包迁到 repository 包：UI 层已改为 Activity + Adapter，
+ * 这个合约属于数据层边界，不应依赖界面实现。
+ */
 interface HomeRepositoryApi {
     val providerStates: StateFlow<List<ProviderOutcome>>
     val aggregate: StateFlow<AggregatedResult?>
     val localIp: StateFlow<String?>
     val loading: StateFlow<Boolean>
     val error: StateFlow<String?>
-    /** 持久化后的设置，UI 直接订阅，避免自己维护一份不同步的副本。 */
+    /** 持久化后的设置，UI 直接订阅 */
     val homeSettings: StateFlow<HomeSettings>
 
     suspend fun initialize()
@@ -26,7 +31,7 @@ interface HomeRepositoryApi {
 
     /**
      * 重新探测本机公网 IP。
-     * @param forceQuery 为 true 时即使 IP 没变也重新查询；网络切换后建议传 true。
+     * @param forceQuery 为 true 时即使 IP 没变也重新查询
      * @return 检测到的新 IP（探测失败时为 null）
      */
     suspend fun refreshLocalIp(forceQuery: Boolean = false): String?
@@ -40,7 +45,3 @@ data class HomeSettings(
     val showFlags: Boolean = true,
     val notifications: Boolean = false,
 )
-
-internal val AggregatedResult.countryCode: String? get() = signals.countryCode
-internal val AggregatedResult.typeLabel: String get() = type.label
-internal val AggregatedResult.flags: Set<String> get() = signals.flags
