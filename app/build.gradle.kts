@@ -85,8 +85,16 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
-    // collectAsStateWithLifecycle：应用退到后台时自动停止收集，避免无意义重组
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.1")
+    // collectAsStateWithLifecycle
+    //
+    // 必须用 2.7.x，不能跟 lifecycle-runtime-ktx 一起升到 2.8.x：
+    // lifecycle-runtime-compose 2.8.0+ 把 LocalLifecycleOwner 迁到了
+    // androidx.lifecycle.compose 包下，要求 compose-ui >= 1.7.0 才会注入；
+    // 而本项目 BOM 2024.06 的 compose-ui 是 1.6.8 —— 两者不匹配时
+    // collectAsStateWithLifecycle 会抛
+    //   IllegalStateException: CompositionLocal LocalLifecycleOwner not present
+    // 并在启动时直接崩溃（v0.0.5 在 Android 12 / HarmonyOS 上实测复现）。
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
