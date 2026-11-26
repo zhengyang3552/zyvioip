@@ -50,7 +50,9 @@
             android:layout_marginStart="@dimen/space_sm"
             android:contentDescription="@string/action_search"
             app:fabSize="normal"
+            app:layout_behavior="@null"
             app:maxImageSize="24dp"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.ZyvioIp.Circle"
             app:srcCompat="@drawable/ic_search" />
     </LinearLayout>
 

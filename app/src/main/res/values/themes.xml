@@ -8,6 +8,8 @@
         <item name="android:windowBackground">@color/app_window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- 全局胶囊改用紧凑样式 -->
+        <item name="chipStyle">@style/Widget.ZyvioIp.Chip</item>
     </style>
 
     <!-- 列表卡片 -->

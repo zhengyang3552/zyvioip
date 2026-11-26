@@ -62,9 +62,17 @@ class IpLookupRepository(
     override val homeSettings: StateFlow<HomeSettings> = _homeSettings.asStateFlow()
 
     override suspend fun initialize() = withContext(Dispatchers.IO) {
-        // 整个初始化都在 IO 线程：
-        // 之前跑在 viewModelScope 默认的 Main 上，settings.load 与
-        // cache.preload（全表 JSON 解码）都压在主线程，启动瞬间明显卡顿。
+        // 先按「默认供应商」把卡片渲染出来，再读 DataStore。
+        //
+        // 之前要等 settings.load() 完成（首次启动 DataStore 要创建文件，
+        // 可能 1~2 秒）才第一次写入 _providerStates，那段时间界面只剩
+        // header、列表全空 —— 就是「打开后有几秒空白页」。
+        // 现在先用内存里的默认集合占位，用户立刻能看到 6 张「等待中」卡片，
+        // 读到真实设置后再覆盖。
+        _providerStates.value = settings.activeIds.distinct().mapNotNull { id ->
+            ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
+        }
+
         settings = settingsRepository?.load() ?: settings
 
         // 把持久化的设置回填给 UI，否则设置页永远显示编译期默认值

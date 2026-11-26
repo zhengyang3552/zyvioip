@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Material3 1.12（Expressive）起 FAB 默认是圆角方块并带形状变化。
+      需要标准圆形时显式指定 50% 圆角。
+    -->
+    <style name="ShapeAppearance.ZyvioIp.Circle" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+</resources>

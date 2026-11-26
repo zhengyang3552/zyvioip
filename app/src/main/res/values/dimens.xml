@@ -13,5 +13,5 @@
     <dimen name="icon_size_md">20dp</dimen>
     <dimen name="icon_size_lg">24dp</dimen>
     <dimen name="touch_target">48dp</dimen>
-    <dimen name="chip_height">28dp</dimen>
+    <dimen name="chip_height">24dp</dimen>
 </resources>

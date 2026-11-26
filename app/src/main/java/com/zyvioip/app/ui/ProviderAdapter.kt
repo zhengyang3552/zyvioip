@@ -143,9 +143,10 @@ class ProviderAdapter(
             }
             b.tvStatus.setText(textRes)
             b.tvStatus.setTextColor(color)
-            // 半透明同色背景：深色/浅色主题下都可见
+            // 圆角取足够大的固定值（≥ 高度的一半），保证任何字号下都是胶囊形，
+            // 而不是随 chip_height 变化的圆角矩形。
             b.tvStatus.background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = ctx.resources.getDimension(R.dimen.chip_height) / 2
+                cornerRadius = ctx.resources.displayMetrics.density * 99f
                 setColor(android.graphics.Color.argb(38,
                     android.graphics.Color.red(color),
                     android.graphics.Color.green(color),
@@ -168,11 +169,14 @@ class ProviderAdapter(
         }
 
         private fun addChip(group: ChipGroup, text: String, tint: Int?) {
-            val chip = Chip(group.context).apply {
+            val chip = Chip(
+                group.context,
+                null,
+                com.google.android.material.R.attr.chipStyle,
+            ).apply {
                 this.text = text
                 isCheckable = false
                 isClickable = false
-                chipMinHeight = group.resources.getDimension(R.dimen.chip_height)
                 setEnsureMinTouchTargetSize(false)
             }
             if (tint != null) {

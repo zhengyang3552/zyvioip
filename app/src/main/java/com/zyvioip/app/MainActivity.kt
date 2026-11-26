@@ -55,10 +55,38 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // 提前创建 ViewModel：它是 by viewModels 懒加载的，
+        // 只有被访问时才会创建、才会开始 initialize() 的数据加载。
+        // 之前要等到 observeState() 里 collect 才第一次访问，
+        // 那段时间列表为空 —— 「打开后有几秒空白」的原因之一。
+        ensureViewModelStarted()
+
         applyInsets()
+        setupToolbar()
         setupRecyclerView()
         observeState()
         observeNetwork()
+    }
+
+    /**
+     * 主动触发 ViewModel 创建。
+     * by viewModels 是懒加载，访问一次即初始化，其 init 块会开始加载数据。
+     */
+    private fun ensureViewModelStarted() {
+        viewModel.repository.providerStates
+    }
+
+    private fun setupToolbar() {
+        // 菜单项在 XML 里声明，监听必须在这里挂上 ——
+        // 上一轮把这段放在已被删除的 setupActions() 里，导致设置按钮点了没反应。
+        binding.toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private fun applyInsets() {
@@ -285,16 +313,26 @@ class MainActivity : AppCompatActivity() {
         s.tvNoScore.visibility = if (result.riskScore == null) View.VISIBLE else View.GONE
     }
 
+    /**
+     * 添加一个紧凑胶囊。
+     * 通过 defStyleAttr 传入 chipStyle，配合 styles.xml 里的
+     * Widget.ZyvioIp.Chip（24dp 高 / 10dp 内边距），
+     * 避免默认 32dp 的大胶囊在摘要里显得笨重。
+     */
     private fun addPill(group: com.google.android.material.chip.ChipGroup, text: String, emphasized: Boolean) {
-        val chip = com.google.android.material.chip.Chip(group.context).apply {
+        val chip = com.google.android.material.chip.Chip(
+            group.context,
+            null,
+            com.google.android.material.R.attr.chipStyle,
+        ).apply {
             this.text = text
             isCheckable = false
             isClickable = false
-            chipMinHeight = group.resources.getDimension(R.dimen.chip_height)
             setEnsureMinTouchTargetSize(false)
         }
+
         if (emphasized) {
-            // 用主题属性而不是具体色值，深浅色自动适配
+            // 主来源用主色容器，深浅色自动适配
             val attrs = intArrayOf(com.google.android.material.R.attr.colorPrimaryContainer)
             val ta = group.context.obtainStyledAttributes(attrs)
             val color = ta.getColor(0, 0xFF3F5FBF.toInt())
