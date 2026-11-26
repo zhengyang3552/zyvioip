@@ -217,7 +217,12 @@ object ProviderCatalog {
         ),
     )
 
-    val defaultActiveIds: Set<String> = all.filter { it.defaultActive }.map { it.id }.toSet()
+    /**
+     * 默认启用的供应商，**按目录声明顺序**返回。
+     * 用 LinkedHashSet 而不是 Set：卡片顺序应当稳定，
+     * 否则每次启动顺序都可能不同。
+     */
+    val defaultActiveIds: Set<String> = all.filter { it.defaultActive }.map { it.id }.toCollection(LinkedHashSet())
 
     fun byId(id: String): ProviderSpec? = all.firstOrNull { it.id.equals(id, ignoreCase = true) }
 

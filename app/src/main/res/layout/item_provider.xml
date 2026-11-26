@@ -9,8 +9,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingBottom="@dimen/space_xs">
+    android:layout_height="wrap_content">
 
     <!-- 背景层：删除按钮，卡片左滑后露出 -->
     <com.google.android.material.button.MaterialButton

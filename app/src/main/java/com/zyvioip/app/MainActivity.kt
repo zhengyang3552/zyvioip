@@ -28,6 +28,7 @@ import com.zyvioip.app.repository.flags
 import com.zyvioip.app.ui.MainViewModel
 import com.zyvioip.app.ui.ProviderAdapter
 import com.zyvioip.app.ui.SharedViewModel
+import com.zyvioip.app.ui.SwipeRevealCallback
 import com.zyvioip.app.ui.SingleItemAdapter
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -151,21 +152,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val touch = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.END) {
-            override fun onMove(
-                rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder,
-            ) = false
-
-            override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {
-                val pos = vh.bindingAdapterPosition
-                if (pos == RecyclerView.NO_POSITION) return
-                val item = adapter.currentList.getOrNull(pos) ?: return
-                // 先恢复视图（ListAdapter 会因数据变化重建），再执行删除
-                adapter.notifyItemChanged(pos)
-                removeWithUndo(item.providerId)
-            }
-        }
-        ItemTouchHelper(touch).attachToRecyclerView(binding.recyclerView)
+        // 左滑只平移卡片露出删除按钮，不直接删除。
+        // 这里必须用 SwipeRevealCallback —— 之前虽然写了这个类，
+        // 但 MainActivity 仍挂着旧的 SimpleCallback，所以滑动后直接删卡、
+        // 按钮永远看不到。
+        val revealPx = resources.getDimension(R.dimen.delete_button_size)
+        ItemTouchHelper(SwipeRevealCallback(revealPx))
+            .attachToRecyclerView(binding.recyclerView)
     }
 
     private fun doSearch() {

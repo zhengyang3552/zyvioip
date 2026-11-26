@@ -14,4 +14,5 @@
     <dimen name="icon_size_lg">24dp</dimen>
     <dimen name="touch_target">48dp</dimen>
     <dimen name="chip_height">24dp</dimen>
+    <dimen name="delete_button_size">72dp</dimen>
 </resources>

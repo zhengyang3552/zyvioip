@@ -59,4 +59,13 @@
     <string name="config_email">联系邮箱</string>
     <string name="field_count">%1$d 个字段</string>
     <string name="config_no_need">该供应商无需配置，可直接添加。</string>
+    <string name="hint_getipintel_email">GetIPIntel 联系邮箱</string>
+    <string name="hint_ipdata_key">ipdata.co API Key</string>
+    <string name="hint_ipapis_key">ipapi.is API Key</string>
+    <string name="hint_abuseipdb_key">AbuseIPDB API Key</string>
+    <string name="hint_ipqs_key">IPQualityScore API Key</string>
+    <string name="hint_apivoid_key">APIVoid API Key</string>
+    <string name="hint_ipdataco_key">ipdata.free API Key</string>
+    <string name="hint_ipgeo_key">IPGeolocation API Key</string>
+    <string name="hint_whoisxml_key">WhoisXML API Key</string>
 </resources>

@@ -9,8 +9,6 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingStart="@dimen/space_lg"
-    android:paddingEnd="@dimen/space_lg"
     android:paddingTop="@dimen/space_sm">
 
     <!-- 搜索栏 -->

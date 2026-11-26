@@ -30,7 +30,16 @@ class IpLookupRepository(
     private val localIpRepository: LocalIpRepository = LocalIpRepository(),
 ) : HomeRepositoryApi {
 
-    private val _providerStates = MutableStateFlow<List<ProviderOutcome>>(emptyList())
+    /**
+     * 卡片状态。
+     *
+     * 初始值不是空列表，而是按目录里的默认供应商预填 PENDING ——
+     * 这样即使 DataStore 读取还没完成、IP 探测还没开始，
+     * 界面也立刻有内容，不会出现「打开后短暂空白」。
+     */
+    private val _providerStates = MutableStateFlow(
+        ProviderCatalog.defaultActiveIds.map { ProviderOutcome(it, ProviderStatus.PENDING) }
+    )
     private val _aggregate = MutableStateFlow<com.zyvioip.app.model.AggregatedResult?>(null)
     private val _localIp = MutableStateFlow<String?>(null)
     private val _loading = MutableStateFlow(false)
