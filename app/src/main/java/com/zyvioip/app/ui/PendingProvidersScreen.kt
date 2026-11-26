@@ -13,6 +13,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +76,21 @@ fun PendingProvidersScreen(
                                     Text(if (configured) "修改配置" else "配置")
                                 }
                             }
-                            Button(onClick = { onAdd(spec.id) }, enabled = configured) { Text("添加") }
+                            // 防重复点击：添加后会立刻返回首页，
+                            // 但连点仍可能在返回前触发第二次 addProvider，
+                            // 造成同一 id 被重复写入（LazyColumn 重复 key 会崩）。
+                            var adding by remember(spec.id) { mutableStateOf(false) }
+                            Button(
+                                onClick = {
+                                    if (!adding) {
+                                        adding = true
+                                        onAdd(spec.id)
+                                    }
+                                },
+                                enabled = configured && !adding,
+                            ) {
+                                Text(if (adding) "添加中…" else "添加")
+                            }
                         }
                     }
                 }

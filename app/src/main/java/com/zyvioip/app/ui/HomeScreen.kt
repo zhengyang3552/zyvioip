@@ -159,7 +159,12 @@ fun HomeScreen(
             pendingOpen -> PendingProvidersScreen(
                 activeIds = activeIds,
                 configs = configs,
-                onAdd = onAddProvider,
+                onAdd = { id ->
+                    onAddProvider(id)
+                    // 添加后直接回首页，让用户马上看到新卡片；
+                    // 留在添加页会让人以为没生效而反复点击。
+                    onPendingOpen(false)
+                },
                 onConfigure = { onConfigure(it) },
                 modifier = Modifier.padding(padding),
             )

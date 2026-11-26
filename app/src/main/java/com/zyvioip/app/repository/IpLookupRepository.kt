@@ -20,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.math.roundToInt
@@ -49,6 +50,15 @@ class IpLookupRepository(
 
     /** 当前正在执行的查询任务，新一代查询开始时会取消它。 */
     @Volatile private var activeSearchJob: Job? = null
+
+    /**
+     * 保护 _providerStates 的所有读-改-写。
+     *
+     * addProvider / retry 都是“先挂起网络请求，再基于旧快照写回”，
+     * 没有互斥就会重复追加或互相覆盖 —— 重复的 providerId 会让
+     * LazyColumn 因重复 key 崩溃。
+     */
+    private val stateMutex = Mutex()
     private var settings = LookupSettings()
     private var currentIp: String? = null
 
@@ -70,7 +80,7 @@ class IpLookupRepository(
             notifications = settings.notifications,
         )
         // 先把本轮要用的供应商卡片渲染出来（PENDING），别让用户盯着空白页等 IP 探测。
-        _providerStates.value = settings.activeIds.mapNotNull { id ->
+        _providerStates.value = settings.activeIds.distinct().mapNotNull { id ->
             ProviderCatalog.byId(id)?.let { ProviderOutcome(id, ProviderStatus.PENDING) }
         }
         // 先把持久缓存一次性灌进内存，后续查询路径不再碰磁盘（详见 DataStoreCacheRepository.preload）
@@ -121,8 +131,12 @@ class IpLookupRepository(
         currentIp = cleanIp
         _error.value = null
         _loading.value = true
-        val active = settings.activeIds.mapNotNull(ProviderCatalog::byId)
-        _providerStates.value = active.map { ProviderOutcome(it.id, ProviderStatus.LOADING) }
+        // distinctBy 兜底：即使 activeIds 被写入了重复项（历史数据 / 并发添加），
+        // 也不能让重复的 providerId 进入列表 —— LazyColumn 用 id 当 key，重复即崩溃。
+        val active = settings.activeIds.distinct().mapNotNull(ProviderCatalog::byId)
+        stateMutex.withLock {
+            _providerStates.value = active.map { ProviderOutcome(it.id, ProviderStatus.LOADING) }
+        }
 
         try {
             val results = coroutineScope {
@@ -135,8 +149,13 @@ class IpLookupRepository(
             }
             // 期间若已有更新的查询，直接放弃本次结果（状态归新的那次管）
             if (generation != searchGeneration) return
-            _providerStates.value = results
-            rebuild(cleanIp, results)
+            stateMutex.withLock {
+                // 合并而非整体替换：期间用户可能新增/删除过供应商
+                var next = _providerStates.value
+                results.forEach { next = upsert(next, it) }
+                _providerStates.value = next
+                rebuild(cleanIp, next)
+            }
         } catch (e: CancellationException) {
             // 被新一代查询取消：如果此时没有更新的查询在跑（例如页面销毁），
             // 必须把卡片从 LOADING 恢复成待命，否则界面会永远转圈。
@@ -157,37 +176,89 @@ class IpLookupRepository(
         val spec = ProviderCatalog.byId(providerId) ?: return
         val ip = currentIp ?: return
         val generation = searchGeneration
-        // 重试只重跑这一个源，先把它标成 LOADING，用户能看到进度而不是一直停在“失败”
-        _providerStates.value = _providerStates.value.map {
-            if (it.providerId == spec.id) it.copy(status = ProviderStatus.LOADING, error = null) else it
+
+        // 先把它标成 LOADING，用户能看到进度而不是一直停在“失败”
+        stateMutex.withLock {
+            _providerStates.value = upsert(
+                _providerStates.value,
+                ProviderOutcome(spec.id, ProviderStatus.LOADING),
+            )
         }
+
         val result = query(spec.id, ip, bypassCache = true)
+
         // 期间如果用户又发起了新的整体查询，就不要用这次单源结果去覆盖它
         if (generation != searchGeneration) return
-        val next = _providerStates.value.map { if (it.providerId == spec.id) result else it }
-        _providerStates.value = if (next.any { it.providerId == spec.id }) next else next + result
-        rebuild(ip, next)
+
+        stateMutex.withLock {
+            val next = upsert(_providerStates.value, result)
+            _providerStates.value = next
+            rebuild(ip, next)
+        }
     }
 
     override suspend fun removeProvider(providerId: String) {
         settings = settings.copy(activeIds = settings.activeIds - providerId)
         settingsRepository?.save(settings)
-        val next = _providerStates.value.filterNot { it.providerId == providerId }
-        _providerStates.value = next
-        currentIp?.let { rebuild(it, next) }
+        stateMutex.withLock {
+            val next = _providerStates.value.filterNot { it.providerId == providerId }
+            _providerStates.value = next
+            currentIp?.let { rebuild(it, next) }
+        }
     }
 
     override suspend fun addProvider(providerId: String) {
         val spec = ProviderCatalog.byId(providerId) ?: return
+
+        // 先去重并立刻插入 PENDING，让卡片马上出现 ——
+        // 之前这里是“等网络请求返回后才追加”，用户点完添加会卡住几百毫秒到数秒，
+        // 期间连点或并发的其它写入还会把同一项追加两次，
+        // 最终导致 LazyColumn 出现重复 key 直接崩溃。
+        val alreadyPresent = stateMutex.withLock {
+            val present = _providerStates.value.any { it.providerId == providerId }
+            if (!present) {
+                _providerStates.value = upsert(
+                    _providerStates.value,
+                    ProviderOutcome(spec.id, ProviderStatus.PENDING),
+                )
+            }
+            present
+        }
+
+        // 持久化放在后面，不阻塞 UI
         settings = settings.copy(activeIds = settings.activeIds + providerId)
         settingsRepository?.save(settings)
-        if (_providerStates.value.none { it.providerId == providerId }) {
-            // 撤销删除后要立刻重新查询，否则卡片会一直停在 PENDING 状态。
-            val result = currentIp?.let { query(spec.id, it, bypassCache = false) }
-                ?: ProviderOutcome(spec.id, ProviderStatus.PENDING)
-            _providerStates.value = _providerStates.value + result
+
+        // 已在列表里就不重复查询
+        if (alreadyPresent) return
+
+        val ip = currentIp ?: return
+        val generation = searchGeneration
+        val result = query(spec.id, ip, bypassCache = false)
+        if (generation != searchGeneration) return
+
+        stateMutex.withLock {
+            val next = upsert(_providerStates.value, result)
+            _providerStates.value = next
+            rebuild(ip, next)
         }
-        currentIp?.let { rebuild(it, _providerStates.value) }
+    }
+
+    /**
+     * 按 providerId 合并：存在则替换，不存在则**追加**。
+     *
+     * 之前多处直接用 `list + result` 或 `list + result` 式追加，
+     * 并发写入时会重复插入同一 id；而 LazyColumn 用 providerId 当 key，
+     * 重复 key 会抛 IllegalArgumentException 直接崩溃。
+     * 所有写入统一走这里，从根上保证 id 唯一。
+     */
+    private fun upsert(
+        current: List<ProviderOutcome>,
+        incoming: ProviderOutcome,
+    ): List<ProviderOutcome> {
+        val index = current.indexOfFirst { it.providerId == incoming.providerId }
+        if (index < 0) return current + incoming
+        return current.toMutableList().also { it[index] = incoming }
     }
 
     override suspend fun setConfig(providerId: String, config: ProviderConfig) {
