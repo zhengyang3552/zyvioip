@@ -196,6 +196,7 @@ fun HomeScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun HomeContent(
     query: String,
