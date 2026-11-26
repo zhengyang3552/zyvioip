@@ -40,6 +40,11 @@ class MemoryCacheRepository : CacheRepository {
         }
     }
 
+    /** 无视 TTL 直接取（重试或重新添加供应商时用）。 */
+    suspend fun peekProviderResult(key: String): ProviderResult? = mutex.withLock {
+        provider[key]?.second?.copy(fromCache = true)
+    }
+
     override suspend fun clear() = mutex.withLock {
         local.clear(); provider.clear()
     }
