@@ -410,14 +410,23 @@ private fun SearchBar(
 @Composable
 private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlags: Boolean) {
     val riskColor = riskColor(result.riskScore)
-    val succeeded = result.providerStates.count { it.outcome.succeeded }
-    val failed = result.providerStates.count {
-        it.outcome.status == com.zyvioip.app.provider.ProviderStatus.ERROR ||
-            it.outcome.status == com.zyvioip.app.provider.ProviderStatus.NEEDS_CONFIG
+    // 三次遍历合并成一次，并按 result 缓存 ——
+    // 之前每次重组都跑 3 遍列表，滚动时重复计算。
+    val counts = remember(result) {
+        var succeeded = 0
+        var failed = 0
+        var skipped = 0
+        result.providerStates.forEach { st ->
+            when {
+                st.outcome.succeeded -> succeeded++
+                st.outcome.status == com.zyvioip.app.provider.ProviderStatus.SKIPPED -> skipped++
+                st.outcome.status == com.zyvioip.app.provider.ProviderStatus.ERROR ||
+                    st.outcome.status == com.zyvioip.app.provider.ProviderStatus.NEEDS_CONFIG -> failed++
+            }
+        }
+        Triple(succeeded, failed, skipped)
     }
-    val skipped = result.providerStates.count {
-        it.outcome.status == com.zyvioip.app.provider.ProviderStatus.SKIPPED
-    }
+    val (succeeded, failed, skipped) = counts
 
     // MD3: 摘要用 filled card（surfaceContainer 层级），圆角 medium(12)
     Card(

@@ -1,6 +1,8 @@
 package com.zyvioip.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -90,22 +92,25 @@ fun OutlinedPill(
 }
 
 /**
- * 胶囊横向流式排列：放不下时自动换行。
+ * 胶囊横向排列。
  *
- * FlowRow 在 compose-foundation 1.6（本项目 BOM 2024.06）仍标记为
- * ExperimentalLayoutApi，需要显式 OptIn；升级到 1.7+ 后可去掉注解。
+ * 之前用 FlowRow：它是 Compose 里测量开销最高的布局之一（需要两趟测量、
+ * 且每帧都要重新计算换行位置）。每张供应商卡片都用它，滚动时开销累加明显。
+ *
+ * 这里改为单行横向滚动：普通 Row 的测量是一趟、线性复杂度。
+ * 胶囊总宽度超屏时用户可横向滑动查看，比强制换行更可控，
+ * 也不会让卡片高度随内容跳变。
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PillRow(
     modifier: Modifier = Modifier,
     spacing: androidx.compose.ui.unit.Dp = Spacing.xs,
     content: @Composable () -> Unit,
 ) {
-    androidx.compose.foundation.layout.FlowRow(
-        modifier = modifier,
+    Row(
+        modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(spacing),
-        verticalArrangement = Arrangement.spacedBy(spacing),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         content()
     }

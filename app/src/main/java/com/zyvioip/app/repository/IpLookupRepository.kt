@@ -12,9 +12,6 @@ import com.zyvioip.app.util.classifyIpType
 import com.zyvioip.app.util.isValidIp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,8 +21,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlin.math.roundToInt
 
 /** Coordinates local IP discovery, concurrent provider queries, TTL caching and aggregation. */
@@ -44,12 +39,6 @@ class IpLookupRepository(
     /** 查询代际号：只有最新一次查询允许写回状态，避免启动查询与手动查询互相覆盖。 */
     @Volatile private var searchGeneration = 0L
 
-    /**
-     * 全局并发闸门，**必须跨查询共享**。
-     * 之前每次 search() 内部 new 一个 Semaphore(5)，启动查询与手动查询同时跑时
-     * 实际并发会翻倍（10 个），在移动网络上直接打满 DNS/TLS 队列导致集体超时。
-     */
-    private val requestGate = Semaphore(MAX_CONCURRENT_PROVIDERS)
 
     /** 当前正在执行的查询任务，新一代查询开始时会取消它。 */
     @Volatile private var activeSearchJob: Job? = null
@@ -151,17 +140,58 @@ class IpLookupRepository(
         }
 
         try {
-            // async 的调度器跟随外层上下文（Main），所以显式指定 IO：
-            // 每个 query 内部已经切了 IO 做网络与解析，这里再加一层是为了让
-            // 编排、结果收集与 Semaphore 等待也不占用主线程。
-            val results = coroutineScope {
-                active.map { spec ->
-                    async(Dispatchers.IO) {
-                        // 共享闸门：无论同时有几个查询在跑，全局并发都受控
-                        requestGate.withPermit { query(spec.id, cleanIp, bypassCache = false) }
+            // 改为**串行请求**：一个源查完再查下一个。
+            //
+            // 之前的并发（6 个同时）会带来三个问题：
+            //   1. 移动网络下突发 6 条 TLS 连接，首屏握手排队，整体反而更慢
+            //   2. 6 份响应几乎同时返回，解析与状态回写集中爆发，主线程被反复打断
+            //   3. 部分免费接口有每秒/每分钟限流，并发容易被判定超限
+            // 串行后每个请求独占链路，且**每完成一个就立刻更新 UI**，
+            // 用户能看到进度逐个点亮，不必等全部完成。
+            val collected = mutableListOf<ProviderOutcome>()
+            // 串行后最坏耗时 = 源数量 × 单源超时（6 × 8s = 48s），
+            // 用户等不了那么久。设一个整体预算：超时的源直接标记为“已跳过”，
+            // 已拿到的结果照常展示。
+            val deadline = System.currentTimeMillis() + TOTAL_BUDGET_MS
+            for ((index, spec) in active.withIndex()) {
+                if (generation != searchGeneration) break
+                if (System.currentTimeMillis() > deadline) {
+                    collected += ProviderOutcome(
+                        spec.id,
+                        ProviderStatus.SKIPPED,
+                        error = "整体查询已超时，本次跳过",
+                    )
+                    continue
+                }
+
+                // 把“当前这个”标成 LOADING，其余仍等待 —— 用户能看到进行到第几个
+                stateMutex.withLock {
+                    _providerStates.value = _providerStates.value.map {
+                        when (it.providerId) {
+                            spec.id -> it.copy(status = ProviderStatus.LOADING)
+                            else -> it
+                        }
                     }
-                }.awaitAll()
+                }
+
+                val outcome = query(spec.id, cleanIp, bypassCache = false)
+                collected += outcome
+
+                // 单条完成即回写：逐卡刷新，避免“等全部完成才一起跳变”
+                val snapshot = collected.toList()
+                stateMutex.withLock {
+                    var next = _providerStates.value
+                    snapshot.forEach { next = upsert(next, it) }
+                    _providerStates.value = next
+                }
+
+                // 汇总只在最后一条、或中途遇到条目变化时才重算，
+                // 避免 n 次 withContext(IO) 切换。
+                if (index == active.lastIndex || outcome.status != ProviderStatus.SUCCESS) {
+                    rebuild(cleanIp, snapshot)
+                }
             }
+            val results = collected.toList()
             // 期间若已有更新的查询，直接放弃本次结果（状态归新的那次管）
             if (generation != searchGeneration) return
             val merged = stateMutex.withLock {
@@ -353,7 +383,7 @@ class IpLookupRepository(
         // 首次冷 DNS 本来就慢，串行叠加后几乎必然撞上超时。
         // 并发安全改由「状态写回时按 providerId 合并」保证（见 search / retry）。
         // 整段网络请求 + JSON 解析 + 缓存写入全部放到 IO 线程。
-        // 之前 query() 被 search() 里的 async 直接调用，而 search() 跑在
+        // 之前 query() 在 search() 的协程内直接调用，而 search() 跑在
         // viewModelScope 的 Main 上 —— 6 个源并发时，6 份响应体的 JSON 解析
         // （ipto.to 单条 44 个字段）全挤在主线程，滚动和首屏都明显掉帧。
         return try {
@@ -487,6 +517,11 @@ class IpLookupRepository(
     private companion object {
         const val LOCAL_CACHE_KEY = "device"
         /** 同时进行的供应商请求上限，避免移动网络下并发过高集体超时。 */
-        const val MAX_CONCURRENT_PROVIDERS = 5
+        /**
+         * 单次查询的整体时间预算（所有源加起来）。
+         * 串行执行时必须有上限，否则源多时总耗时线性膨胀。
+         */
+        const val TOTAL_BUDGET_MS = 25_000L
+
     }
 }
