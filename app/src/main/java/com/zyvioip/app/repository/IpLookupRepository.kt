@@ -135,25 +135,36 @@ class IpLookupRepository(
         // distinctBy 兜底：即使 activeIds 被写入了重复项（历史数据 / 并发添加），
         // 也不能让重复的 providerId 进入列表 —— LazyColumn 用 id 当 key，重复即崩溃。
         val active = settings.activeIds.distinct().mapNotNull(ProviderCatalog::byId)
+
+        // 查询开始时**不改动已有卡片**：
+        // 之前这里会把全部卡片重置成 LOADING，导致每次点查询整列表重组一轮，
+        // 用户滑到一半会被打断。现在只有「新出现的供应商」才需要插入占位卡片，
+        // 已有卡片保持上一次的结果不动，直到本次查询结束一次性替换。
         stateMutex.withLock {
-            _providerStates.value = active.map { ProviderOutcome(it.id, ProviderStatus.LOADING) }
+            val existing = _providerStates.value.map { it.providerId }.toSet()
+            val placeholders = active
+                .filterNot { it.id in existing }
+                .map { ProviderOutcome(it.id, ProviderStatus.LOADING) }
+            if (placeholders.isNotEmpty()) {
+                _providerStates.value = _providerStates.value + placeholders
+            }
         }
 
         try {
-            // 改为**串行请求**：一个源查完再查下一个。
+            // 串行请求：一个源查完再查下一个。
+            // 移动网络下不突发多条 TLS 连接，也不容易撞上免费接口的限流。
             //
-            // 之前的并发（6 个同时）会带来三个问题：
-            //   1. 移动网络下突发 6 条 TLS 连接，首屏握手排队，整体反而更慢
-            //   2. 6 份响应几乎同时返回，解析与状态回写集中爆发，主线程被反复打断
-            //   3. 部分免费接口有每秒/每分钟限流，并发容易被判定超限
-            // 串行后每个请求独占链路，且**每完成一个就立刻更新 UI**，
-            // 用户能看到进度逐个点亮，不必等全部完成。
+            // 查询期间**完全不更新 UI 状态**。
+            //
+            // 之前是「每查完一个源就回写 + rebuild」，6 个源会产生近 20 次
+            // StateFlow 更新，每次都让 LazyColumn 重组一轮 —— 用户在查询过程中
+            // 只要一滑动，就正好撞上这些重组，于是「按秒卡一下」。
+            //
+            // 现在卡片保持静态：开始查询时一切不动，全部结束后一次性提交结果。
+            // 进度反馈改由顶部的 loading 指示器承担，不再逐卡刷新。
             val collected = mutableListOf<ProviderOutcome>()
-            // 串行后最坏耗时 = 源数量 × 单源超时（6 × 8s = 48s），
-            // 用户等不了那么久。设一个整体预算：超时的源直接标记为“已跳过”，
-            // 已拿到的结果照常展示。
             val deadline = System.currentTimeMillis() + TOTAL_BUDGET_MS
-            for ((index, spec) in active.withIndex()) {
+            for (spec in active) {
                 if (generation != searchGeneration) break
                 if (System.currentTimeMillis() > deadline) {
                     collected += ProviderOutcome(
@@ -163,35 +174,7 @@ class IpLookupRepository(
                     )
                     continue
                 }
-
-                // 把“当前这个”标成 LOADING。
-                // 只在确实需要变更时才写回 —— 每次都无脑 map 出全新 List 会让
-                // LazyColumn 认为整个列表变了，触发一轮完整重组。
-                stateMutex.withLock {
-                    val current = _providerStates.value
-                    val idx = current.indexOfFirst { it.providerId == spec.id }
-                    if (idx >= 0 && current[idx].status != ProviderStatus.LOADING) {
-                        _providerStates.value = current.toMutableList().also {
-                            it[idx] = it[idx].copy(status = ProviderStatus.LOADING)
-                        }
-                    }
-                }
-
-                val outcome = query(spec.id, cleanIp, bypassCache = false)
-                collected += outcome
-
-                // 单条完成即回写：逐卡刷新，避免“等全部完成才一起跳变”
-                val snapshot = collected.toList()
-                stateMutex.withLock {
-                    val next = upsert(_providerStates.value, outcome)
-                    if (next != _providerStates.value) _providerStates.value = next
-                }
-
-                // 汇总只在最后一条、或中途遇到条目变化时才重算，
-                // 避免 n 次 withContext(IO) 切换。
-                if (index == active.lastIndex || outcome.status != ProviderStatus.SUCCESS) {
-                    rebuild(cleanIp, snapshot)
-                }
+                collected += query(spec.id, cleanIp, bypassCache = false)
             }
             val results = collected.toList()
             // 期间若已有更新的查询，直接放弃本次结果（状态归新的那次管）

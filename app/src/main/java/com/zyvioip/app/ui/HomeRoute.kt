@@ -1,6 +1,7 @@
 package com.zyvioip.app.ui
 
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,13 +40,18 @@ fun HomeRoute(modifier: Modifier = Modifier) {
     var pendingOpen by rememberSaveable { mutableStateOf(false) }
     var configProviderId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // 网络切换（Wi-Fi <-> 移动网络）后自动重新探测本机 IP；
-    // 只有 IP 真的变了才会重查，避免无谓请求。
+    // 网络切换（Wi-Fi <-> 移动网络）后自动重新探测本机 IP。
+    //
+    // 注意：必须去重。onCapabilitiesChanged 在网络参数微调时会反复回调，
+    // 若每次都触发一次全量查询，用户会明显感到“隔一阵卡一下”。
+    // NetworkWatcher 内部已做 debounce，这里再用 distinctUntilChanged 兜一层。
     val appContext = LocalContext.current
     LaunchedEffect(appContext) {
-        NetworkWatcher(appContext).changes().collect {
-            viewModel.onNetworkChanged()
-        }
+        NetworkWatcher(appContext).changes()
+            .distinctUntilChanged()
+            .collect {
+                viewModel.onNetworkChanged()
+            }
     }
 
     // System back should navigate back one settings level, never finish the Activity from a subpage.
