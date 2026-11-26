@@ -14,9 +14,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.HorizontalDivider
@@ -139,21 +136,23 @@ fun ProviderCard(
                 result?.origin?.let { origin ->
                     InfoPill(text = origin.label, emphasized = false)
                 }
+                // 标记用「描边」而不是实心红底：
+                // 多个标记并排时全用 errorContainer 会变成一整排刺眼的红块，
+                // 和真正需要警示的风险分抢视觉焦点。描边样式层级更低、更克制。
                 result?.flags?.forEach { flag ->
-                    InfoPill(
+                    OutlinedPill(
                         text = flagLabel(flag),
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                result?.latencyMs?.takeIf { it > 0 && it < 120_000 }?.let {
-                    OutlinedPill(text = "${it} ms")
                 }
             }
 
+            // 延迟并入下面的摘要行，避免单独占一行
+            val latency = result?.latencyMs?.takeIf { it > 0 && it < 120_000 }
+
             // 折叠时的摘要行
             if (!expanded) {
-                val detail = when {
+                val base = when {
                     status == ProviderStatus.NEEDS_CONFIG ->
                         "尚未配置 ${spec.configLabel.ifBlank { "密钥" }}，点击右上角重试或到设置中填写"
                     status == ProviderStatus.ERROR -> result?.error ?: "查询失败"
@@ -161,6 +160,11 @@ fun ProviderCard(
                         result?.country, result?.city, result?.company, result?.asn,
                     ).distinct().joinToString(" · ").ifBlank { result?.message }.orEmpty()
                     else -> spec.note
+                }
+                val detail = if (status == ProviderStatus.SUCCESS && latency != null) {
+                    "$base · ${latency} ms"
+                } else {
+                    base
                 }
                 if (detail.isNotBlank()) {
                     Text(
@@ -185,12 +189,11 @@ fun ProviderCard(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = Spacing.xs),
                 )
-                // 字段较多，用纵向滚动避免撑爆卡片
+                // 不再内部滚动：展开内容应随卡片一起、由外层列表统一滚动。
+                // 之前给了 heightIn(260dp) + verticalScroll，形成“卡片里套一个滚动框”，
+                // 手势要区分内外两层，体验很别扭，也会和左滑冲突。
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 260.dp)
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     raw.forEach { (key, value) ->

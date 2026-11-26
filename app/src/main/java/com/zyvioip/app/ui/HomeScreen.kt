@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -212,131 +213,148 @@ private fun HomeContent(
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            // MD3 8dp 间距系统：屏幕左右统一 16dp 边距
-            .padding(horizontal = Spacing.lg),
+    // 整页统一一个 LazyColumn：
+    // 之前搜索栏/摘要卡固定在顶部，只让供应商列表滚，导致小屏上摘要卡吃掉半屏，
+    // 底下能看到的供应商只剩一两个。现在所有内容一起滚，滑动方向单一。
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = Spacing.lg,
+            end = Spacing.lg,
+            top = Spacing.md,
+            bottom = Spacing.md,
+        ),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        // MD3 搜索栏：形状为 full（胶囊），高度 56dp，内部 8dp 间距。
-        // 之前用普通 OutlinedTextField + 独立 Button，形状与圆角都不符合规范。
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            modifier = Modifier.padding(top = Spacing.md),
-        ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = { Text("输入 IPv4 / IPv6", style = MaterialTheme.typography.bodyLarge) },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-                // MD3: search bar / 文本输入圆角为 full
-                shape = CircleShape,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
-                keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "清空", modifier = Modifier.size(18.dp))
+        // ---- 搜索栏 ----
+        item(key = "search") {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    placeholder = { Text("输入 IPv4 / IPv6", style = MaterialTheme.typography.bodyLarge) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                    // MD3 search bar 圆角为 full
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
+                    keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(40.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "清空", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    },
+                )
+                // 与输入框同高的胶囊按钮（56dp），避免高矮不齐
+                Button(
+                    onClick = onSubmit,
+                    enabled = !loading,
+                    shape = CircleShape,
+                    modifier = Modifier.height(56.dp),
+                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                ) {
+                    Text("查询", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+
+        // ---- 本机 IP ----
+        localIp?.let { ip ->
+            item(key = "local-ip") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    OutlinedPill(
+                        text = "本机 IP $ip",
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onUseLocalIp(ip) },
+                    )
+                    if (refreshingIp) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        IconButton(onClick = onRefreshLocalIp, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "刷新本机 IP",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
-                },
-            )
-            // MD3 filled button 高度 40dp，圆角 full
-            Button(
-                onClick = onSubmit,
-                enabled = !loading,
-                shape = CircleShape,
-                contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md),
-            ) {
-                Text("查询", style = MaterialTheme.typography.labelLarge)
-            }
-        }
-
-        // 本机 IP：可点胶囊 + 刷新按钮
-        localIp?.let { ip ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                OutlinedPill(
-                    text = "本机 IP $ip",
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable { onUseLocalIp(ip) },
-                )
-                if (refreshingIp) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                } else {
-                    IconButton(onClick = onRefreshLocalIp, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "刷新本机 IP",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
                 }
             }
         }
 
+        // ---- 查询中 ----
         if (loading) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                Text("正在查询…", style = MaterialTheme.typography.labelMedium)
-            }
-        }
-
-        aggregate?.let { SummaryCard(it, showFlags = showFlags) }
-
-        if (providerStates.isNotEmpty()) {
-            RemoveHint()
-        }
-
-        if (providerStates.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    "还没有启用任何供应商\n点下方按钮添加",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                // MD3 列表间距用 8dp 基准
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                contentPadding = PaddingValues(bottom = Spacing.sm),
-            ) {
-                items(providerStates, key = { it.providerId }) { state ->
-                    ProviderDismissItem(state, onRetry = onRetry, onRemove = onRemove)
+            item(key = "loading") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    Text("正在查询…", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
 
-        // MD3 层级：主操作（查询）用 filled，次级操作（添加源）用 filled-tonal，
-        // 避免与主按钮抢视觉重量。
-        FilledTonalButton(
-            onClick = onPendingOpen,
-            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.md),
-            shape = CircleShape,
-            contentPadding = PaddingValues(vertical = Spacing.md),
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(Spacing.sm))
-            Text("添加供应商", style = MaterialTheme.typography.labelLarge)
+        // ---- 摘要卡 ----
+        aggregate?.let { result ->
+            item(key = "summary") { SummaryCard(result, showFlags = showFlags) }
+        }
+
+        // ---- 提示 ----
+        if (providerStates.isNotEmpty()) {
+            item(key = "hint") { RemoveHint() }
+        }
+
+        // ---- 空状态 ----
+        if (providerStates.isEmpty()) {
+            item(key = "empty") {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxl),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "还没有启用任何供应商\n点下方按钮添加",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+
+        // ---- 供应商卡片 ----
+        items(providerStates, key = { it.providerId }) { state ->
+            ProviderDismissItem(state, onRetry = onRetry, onRemove = onRemove)
+        }
+
+        // ---- 底部按钮 ----
+        item(key = "add-provider") {
+            FilledTonalButton(
+                onClick = onPendingOpen,
+                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                shape = CircleShape,
+                contentPadding = PaddingValues(vertical = Spacing.md),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(Spacing.sm))
+                Text("添加供应商", style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }
@@ -378,18 +396,26 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlag
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 Spacer(Modifier.weight(1f))
-                // 风险分用 display 级视觉重量，颜色映射风险档位
-                Text(
-                    text = result.riskScore?.toString() ?: "--",
-                    color = riskColor,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = "风险",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // 风险分：数字与「风险」二字底部对齐。
+                // 之前一行里混用 headlineSmall 和 labelSmall，两者行高差很大，
+                // 基线对不齐，截图里数字明显偏高。
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    Text(
+                        text = result.riskScore?.toString() ?: "--",
+                        color = riskColor,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "风险",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 3.dp),
+                    )
+                }
             }
 
             // 第二行：地点 · 类型（次要信息，onSurfaceVariant）
@@ -412,13 +438,14 @@ private fun SummaryCard(result: com.zyvioip.app.model.AggregatedResult, showFlag
                     )
                     OutlinedPill(text = ov.source)
                 }
-                // 风险标记胶囊
+                // 风险标记胶囊：用描边样式而不是实心红底。
+                // 截图里 5 个标记全是深红块，和风险分数字互相抢注意力；
+                // 描边更克制，也符合 MD3「容器色表达层级」的用法。
                 if (showFlags) {
                     result.flags.forEach { flag ->
-                        InfoPill(
+                        OutlinedPill(
                             text = flagLabel(flag),
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

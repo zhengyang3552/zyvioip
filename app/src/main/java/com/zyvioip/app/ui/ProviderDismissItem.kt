@@ -51,8 +51,7 @@ internal fun ProviderDismissItem(
     val actionWidthPx = with(LocalDensity.current) { ACTION_WIDTH.toPx() }
     var offsetX by remember(state.providerId) { mutableFloatStateOf(0f) }
     var revealed by remember(state.providerId) { mutableStateOf(false) }
-    // 展开状态放在这里：展开后内部字段列表需要纵向滚动，
-    // 此时必须禁掉左滑，否则横向手势会把滚动吃掉。
+    // 展开状态放在这里：左滑偏移需要知道是否展开（展开时不做位移）
     var expanded by rememberSaveable(state.providerId) { mutableStateOf(false) }
 
     // 卡片被移出列表时把偏移归零，避免复用错位
@@ -62,7 +61,7 @@ internal fun ProviderDismissItem(
         targetValue = if (revealed) -actionWidthPx else 0f,
         label = "provider-card-offset",
     )
-    val currentOffset = if (expanded) 0f else if (offsetX != 0f) offsetX else animatedOffset
+    val currentOffset = if (offsetX != 0f) offsetX else animatedOffset
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // 背景层：圆形删除按钮，只有卡片被推开后才可点。
@@ -103,8 +102,10 @@ internal fun ProviderDismissItem(
                 // 系统的 touch slop、且横向优先时才会触发，纵向手势会留给内部滚动容器。
                 // 这样展开后的字段列表可以正常上下滚动，不会被左滑手势吃掉。
                 // 展开时完全不挂载手势检测，让内部滚动容器独占触摸
-                .pointerInput(state.providerId, actionWidthPx, expanded) {
-                    if (expanded) return@pointerInput
+                // 详情不再内部滚动，展开时也允许左滑删除。
+                // detectHorizontalDragGestures 只在横向位移超过 touch slop 且横向优先时才触发，
+                // 纵向手势会留给外层 LazyColumn 滚动，两者不会互相抢占。
+                .pointerInput(state.providerId, actionWidthPx) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             // 超过一半就吸附到“已展开”，否则回弹
