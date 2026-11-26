@@ -15,6 +15,15 @@ on:
       - 'docs/**'
       - 'LICENSE'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: '是否发布 Release（勾选后才会创建 GitHub Release 并上传 APK）'
+        type: boolean
+        default: false
+      tag:
+        description: '要发布的 tag（例如 v0.0.8）。留空则使用当前分支最新 commit 打 tag'
+        type: string
+        required: false
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -28,8 +37,14 @@ env:
   ANDROID_BUILD_TOOLS: '34.0.0'
   # 版本号注入：debug / release 读到同一组值，versionCode 随 run_number 单调递增。
   BUILD_NUMBER: ${{ github.run_number }}
-  # 只有 tag 构建用 tag 名当 versionName（v1.0.3 -> 1.0.3）
-  VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+  # 版本名来源优先级：
+  #   1. 手动发布时填写的 tag 输入
+  #   2. tag 推送时的 ref_name
+  #   3. 空 -> 回退 build.gradle.kts 里的默认值
+  VERSION_NAME: >-
+    ${{ inputs.tag != '' && inputs.tag
+        || (startsWith(github.ref, 'refs/tags/v') && github.ref_name)
+        || '' }}
   GRADLE_OPTS: >-
     -Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8
     -Dkotlin.daemon.jvm.options=-Xmx1536m
@@ -42,7 +57,6 @@ jobs:
   # 普通分支/PR：单元测试 + Debug 构建
   build:
     name: 单元测试 / 构建 Debug APK
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -130,7 +144,6 @@ jobs:
 
   lint:
     name: Lint 检查
-    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -174,9 +187,11 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # 发布是**手动**动作：只有 workflow_dispatch 且勾选 publish 时才跑。
+  # 推 tag 不再自动发版 —— tag 只用于标记代码节点与跑质量门。
   release:
     name: 发布 Release APK
-    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -321,10 +336,15 @@ jobs:
           mkdir -p dist
           APK=$(find app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
           # 只产出一个 APK。
-          # 之前同时放了 zyvioip-latest.apk 和 zyvioip-<tag>-release.apk，
-          # 是同一个文件的两个副本，导致每个 Release 的 Assets 里出现两份 APK，
-          # 看着像“发布了两遍”。GITHUB_REF_NAME 形如 v0.0.1，这里直接去掉前缀 v。
-          VERSION="${GITHUB_REF_NAME#v}"
+          # 版本号取自 VERSION_NAME（已在 workflow env 里统一解析：
+          # 手动发布用 inputs.tag，tag 推送用 ref_name，都没有则回退）。
+          # 注意不能直接用 GITHUB_REF_NAME：手动发布时它是分支名（main），不适合当版本。
+          VERSION="${VERSION_NAME#v}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::无法确定版本号：请在触发时填写 tag 输入"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           cp "$APK" "dist/zyvioip-${VERSION}.apk"
           ls -lh dist/
           test "$(find dist -name '*.apk' | wc -l)" -eq 1 || { echo "::error::dist 里应只有 1 个 APK"; exit 1; }
@@ -332,5 +352,9 @@ jobs:
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # 手动发布时没有 ref 上的 tag 上下文，必须显式指定；
+          # 若该 tag 尚不存在，action 会基于当前 commit 自动创建。
+          tag_name: ${{ env.VERSION_NAME }}
+          name: ${{ env.VERSION_NAME }}
           files: dist/*.apk
           generate_release_notes: true
