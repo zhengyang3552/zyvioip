@@ -68,7 +68,11 @@ fun ProviderConfigScreen(
                 label = { Text(spec.configLabel.ifBlank { "联系邮箱" }) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                // 与密钥同样受「显示」开关控制，避免开关失效
+                visualTransformation = if (reveal) VisualTransformation.None else SecretMask,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = if (reveal) KeyboardType.Email else KeyboardType.Password,
+                ),
             )
         }
         if (spec?.requiresKey != true && spec?.requiresEmail != true) {

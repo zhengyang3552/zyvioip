@@ -110,7 +110,13 @@ fun SettingsScreen(
                             label = { Text("${spec.name} 联系邮箱") },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            // 邮箱和密钥一样受「显示密钥明文」开关控制。
+                            // 之前这里漏了 visualTransformation，导致开关关着时邮箱仍显示明文，
+                            // 看起来就像「隐藏功能失效」。
+                            visualTransformation = if (reveal) VisualTransformation.None else SecretMask,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = if (reveal) KeyboardType.Email else KeyboardType.Password,
+                            ),
                         )
                         Button(
                             onClick = { onConfigChange(spec.id, ProviderConfig(spec.id, key.trim(), email.trim())) },

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,10 +18,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
@@ -255,15 +256,32 @@ private fun HomeContent(
                         }
                     },
                 )
-                // 与输入框同高的胶囊按钮（56dp），避免高矮不齐
-                Button(
+                // 圆形图标按钮（56dp），与输入框同高。
+                // 去掉文字标签：输入框已有「输入 IPv4 / IPv6」提示，按钮再加「查询」
+                // 属于重复表达，且方形文字按钮和胶囊输入框视觉上不对称。
+                FilledIconButton(
                     onClick = onSubmit,
                     enabled = !loading,
                     shape = CircleShape,
-                    modifier = Modifier.height(56.dp),
-                    contentPadding = PaddingValues(horizontal = Spacing.lg),
+                    modifier = Modifier.size(56.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
                 ) {
-                    Text("查询", style = MaterialTheme.typography.labelLarge)
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "查询",
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
             }
         }
