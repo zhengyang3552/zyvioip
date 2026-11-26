@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
+import com.zyvioip.app.ui.theme.Spacing
 import com.zyvioip.app.provider.ProviderCatalog
 import com.zyvioip.app.provider.ProviderConfig
 
@@ -43,7 +43,7 @@ fun ProviderConfigScreen(
         email = initial.email
     }
 
-    Column(modifier = modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
         Text("配置 ${spec?.name ?: providerId}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         if (spec?.requiresKey == true) {
             OutlinedTextField(

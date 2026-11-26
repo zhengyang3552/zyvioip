@@ -26,7 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
+import com.zyvioip.app.ui.theme.Spacing
 import com.zyvioip.app.provider.ProviderCatalog
 import com.zyvioip.app.provider.ProviderConfig
 
@@ -49,8 +49,8 @@ fun SettingsScreen(
     }
     val commit: (HomeSettings) -> Unit = { onSettingsChange(it) }
     Column(
-        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         Text("设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("密钥只保存在本机，不会上传到除对应服务商以外的任何地方。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -82,9 +82,9 @@ fun SettingsScreen(
             LaunchedEffect(config.email) { email = config.email }
             val dirty = key != config.apiKey || email != config.email
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.fillMaxWidth()) {
                 if (spec.requiresKey) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         OutlinedTextField(
                             value = key,
                             onValueChange = { key = it },
@@ -103,7 +103,7 @@ fun SettingsScreen(
                     }
                 }
                 if (spec.requiresEmail) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },

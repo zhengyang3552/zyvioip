@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -29,6 +27,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
+import com.zyvioip.app.ui.components.InfoPill
+import com.zyvioip.app.ui.components.OutlinedPill
+import com.zyvioip.app.ui.components.PillRow
+import com.zyvioip.app.ui.theme.Spacing
 import com.zyvioip.app.provider.ProviderFlag
 import com.zyvioip.app.provider.ProviderOutcome
 import com.zyvioip.app.provider.ProviderSpec
@@ -71,13 +75,18 @@ fun ProviderCard(
     val raw = result?.rawFields.orEmpty()
     val hasDetail = raw.isNotEmpty()
 
+    // MD3: card 圆角 medium(12)，容器用 surfaceContainerLow 体现层级，
+    // 深度靠色调而非阴影（tonal surfaces replace elevation shadows）
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(
                     text = spec.name,
                     style = MaterialTheme.typography.titleSmall,
@@ -86,7 +95,7 @@ fun ProviderCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(text = statusText, color = statusColor, style = MaterialTheme.typography.labelMedium)
+                StatusPill(text = statusText, color = statusColor)
                 // 重试按钮始终显示，只在“查询中”时禁用
                 IconButton(
                     onClick = { onRetry(spec.id) },
@@ -118,34 +127,27 @@ fun ProviderCard(
             }
 
             // 简要徽标：风险分 / 来源属性 / 标记
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 风险分 / 来源 / 标记：统一用胶囊展示（MD3 chip，圆角 full）
+            PillRow {
                 result?.riskScore?.let { risk ->
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text("风险 $risk", style = MaterialTheme.typography.labelSmall) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            disabledLabelColor = purityColor(100 - risk),
-                            disabledContainerColor = purityColor(100 - risk).copy(alpha = 0.12f),
-                        ),
+                    InfoPill(
+                        text = "风险 $risk",
+                        containerColor = purityColor(100 - risk).copy(alpha = 0.14f),
+                        contentColor = purityColor(100 - risk),
                     )
                 }
                 result?.origin?.let { origin ->
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text(origin.label, style = MaterialTheme.typography.labelSmall) },
-                    )
+                    InfoPill(text = origin.label, emphasized = false)
                 }
                 result?.flags?.forEach { flag ->
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text(flagLabel(flag), style = MaterialTheme.typography.labelSmall) },
+                    InfoPill(
+                        text = flagLabel(flag),
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     )
                 }
                 result?.latencyMs?.takeIf { it > 0 && it < 120_000 }?.let {
-                    Text("${it} ms", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedPill(text = "${it} ms")
                 }
             }
 
@@ -174,14 +176,14 @@ fun ProviderCard(
             // 展开：完整字段表
             if (expanded && hasDetail) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = Spacing.xs),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                 )
                 Text(
                     text = "${spec.name} 返回的全部字段（${raw.size} 项）",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = Spacing.xs),
                 )
                 // 字段较多，用纵向滚动避免撑爆卡片
                 Column(
@@ -189,12 +191,12 @@ fun ProviderCard(
                         .fillMaxWidth()
                         .heightIn(max = 260.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
                     raw.forEach { (key, value) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                         ) {
                             Text(
                                 text = key,
@@ -233,4 +235,25 @@ internal fun flagLabel(flag: String): String = when (flag) {
     ProviderFlag.ABUSER -> "滥用"
     ProviderFlag.MOBILE -> "移动网络"
     else -> flag
+}
+
+/**
+ * 状态胶囊：把「成功 / 失败 / 查询中」做成小圆角标签。
+ *
+ * MD3 中状态属于离散元信息，用 chip 语义（胶囊形）比普通文本更易扫读。
+ * 颜色取自语义色，保证深浅主题下对比度一致。
+ */
+@Composable
+private fun StatusPill(text: String, color: Color) {
+    Surface(
+        shape = CircleShape,
+        color = color.copy(alpha = 0.12f),
+        contentColor = color,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = 2.dp),
+        )
+    }
 }
