@@ -75,6 +75,9 @@ class ProviderAdapter(
         val cardView: android.view.View get() = b.card
 
         init {
+            // 卡片左滑露出删除按钮（不依赖 ItemTouchHelper）
+            SwipeRevealHelper.attach(b.root)
+
             b.btnDelete.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) {

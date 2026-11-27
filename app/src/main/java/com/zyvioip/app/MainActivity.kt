@@ -13,7 +13,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.DefaultItemAnimator
-import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
@@ -28,7 +27,7 @@ import com.zyvioip.app.repository.flags
 import com.zyvioip.app.ui.MainViewModel
 import com.zyvioip.app.ui.ProviderAdapter
 import com.zyvioip.app.ui.SharedViewModel
-import com.zyvioip.app.ui.SwipeRevealCallback
+import com.zyvioip.app.ui.SwipeRevealHelper
 import com.zyvioip.app.ui.SingleItemAdapter
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -152,13 +151,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 左滑只平移卡片露出删除按钮，不直接删除。
-        // 这里必须用 SwipeRevealCallback —— 之前虽然写了这个类，
-        // 但 MainActivity 仍挂着旧的 SimpleCallback，所以滑动后直接删卡、
-        // 按钮永远看不到。
-        val revealPx = resources.getDimension(R.dimen.delete_button_size)
-        ItemTouchHelper(SwipeRevealCallback(revealPx))
-            .attachToRecyclerView(binding.recyclerView)
+        // 左滑由 SwipeRevealHelper 在卡片内部处理（见 ProviderAdapter.VH.init），
+        // 不再使用 ItemTouchHelper：
+        //   - ConcatAdapter 下 getSwipeDirs 的位置判断不可靠，导致根本滑不动
+        //   - onChildDraw 手改 translationX 会与 ItemTouchHelper 自身偏移叠加，
+        //     造成「点按位置与实际控件错位」
+        // 滚动时收起已展开的卡片，避免带着偏移滚出屏幕。
+        binding.recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    SwipeRevealHelper.collapseAll(rv)
+                }
+            }
+        })
     }
 
     private fun doSearch() {
