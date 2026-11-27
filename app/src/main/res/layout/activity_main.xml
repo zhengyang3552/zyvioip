@@ -1,48 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  主界面：整页统一滚动。
+  主界面：搜索区固定，只有供应商卡片列表滚动。
 
-  实现要点：
-  - 只用一个 RecyclerView 承载全部内容（搜索区 + 摘要 + 供应商卡片），
-    搜索区和摘要通过 ConcatAdapter 作为「一个 header item」插在最前。
-  - **绝不能**把 RecyclerView 包进 ScrollView/NestedScrollView 并设
-    wrap_content —— 那样会一次性布局全部条目，失去视图复用，
-    正是 ZYNotificationHistory 注释里点名过的卡顿来源。
-  - 供应商列表本身仍是 ListAdapter + DiffUtil，内容未变的条目不会重绑。
+  为什么不再整页滚动：
+  之前用一个 RecyclerView 承载全部内容（header + 卡片 + footer），
+  卡片内的左滑手势与列表自身的纵向滚动、以及外层滚动容器互相干扰，
+  导致「按钮错位」「滑不动」。
+  现在搜索区/摘要固定在顶部，RecyclerView 只负责卡片，
+  手势坐标与滚动区域完全一致，滑动判定不再有歧义。
 -->
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="?attr/colorSurface">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBar"
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
-        app:elevation="0dp">
+        app:menu="@menu/menu_main"
+        app:title="ZyvioIP"
+        app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:menu="@menu/menu_main"
-            app:title="ZyvioIP"
-            app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
-    </com.google.android.material.appbar.AppBarLayout>
+    <!-- 固定区：搜索 + 本机 IP + 摘要 + 提示 -->
+    <include
+        android:id="@+id/header"
+        layout="@layout/view_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
-    <!-- 左右留白统一交给 RecyclerView：
-         之前 header 自己带 padding、供应商卡没有，导致上下两类卡片宽度不一致。 -->
+    <!-- 只有卡片滚动 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
         android:paddingStart="@dimen/space_lg"
         android:paddingEnd="@dimen/space_lg"
-        android:scrollbars="vertical"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+        android:paddingBottom="@dimen/space_sm"
+        android:scrollbars="vertical" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnAddProvider"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_lg"
+        android:layout_marginEnd="@dimen/space_lg"
+        android:layout_marginBottom="@dimen/space_sm"
+        android:text="@string/action_add_provider"
+        app:cornerRadius="28dp"
+        app:icon="@drawable/ic_add"
+        app:iconGravity="textStart" />
+</LinearLayout>

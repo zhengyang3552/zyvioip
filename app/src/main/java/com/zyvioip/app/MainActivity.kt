@@ -11,13 +11,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import com.zyvioip.app.databinding.ActivityMainBinding
-import com.zyvioip.app.databinding.ViewFooterBinding
 import com.zyvioip.app.databinding.ViewHeaderBinding
 import com.zyvioip.app.model.AggregatedResult
 import com.zyvioip.app.provider.ProviderCatalog
@@ -28,7 +26,6 @@ import com.zyvioip.app.ui.MainViewModel
 import com.zyvioip.app.ui.ProviderAdapter
 import com.zyvioip.app.ui.SharedViewModel
 import com.zyvioip.app.ui.SwipeRevealHelper
-import com.zyvioip.app.ui.SingleItemAdapter
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -37,13 +34,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: ProviderAdapter
 
-    /** 头部（搜索区 + 摘要）与尾部（添加按钮），与供应商列表用 ConcatAdapter 拼接。 */
-    private lateinit var headerAdapter: SingleItemAdapter<ViewHeaderBinding>
-    private lateinit var footerAdapter: SingleItemAdapter<ViewFooterBinding>
-
-    /** 头部当前绑定出的 ViewBinding，供各 render 方法访问。 */
-    private val header: ViewHeaderBinding?
-        get() = headerAdapter.currentBinding()
+    /** 固定区（搜索 + 本机 IP + 摘要）的 ViewBinding。 */
+    private val header: ViewHeaderBinding
+        get() = binding.header
 
     /** 与其他页面共用同一实例（见 SharedViewModel）。 */
     private val viewModel: MainViewModel by lazy {
@@ -104,72 +97,59 @@ class MainActivity : AppCompatActivity() {
             onRemove = { id -> removeWithUndo(id) },
         )
 
-        // 头部：搜索区 + 摘要。绑定完成后回调里再挂点击监听（此时控件才存在）。
-        headerAdapter = SingleItemAdapter(
-            inflate = { inflater, parent -> ViewHeaderBinding.inflate(inflater, parent, false) },
-        ) { h ->
-            h.btnSearch.setOnClickListener { doSearch() }
-            h.inputIp.setOnEditorActionListener { _, actionId, _ ->
-                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                    doSearch()
-                    true
-                } else {
-                    false
-                }
-            }
-            h.btnRefreshIp.setOnClickListener { viewModel.refreshLocalIp(forceQuery = true) }
-            h.tvLocalIp.setOnClickListener {
-                val ip = it.tag as? String ?: return@setOnClickListener
-                h.inputIp.setText(ip)
-                viewModel.search(ip)
-            }
-            // 头部重建后立即回填当前状态，避免闪空
-            renderLocalIp(viewModel.repository.localIp.value)
-            renderSummary(viewModel.repository.aggregate.value)
-            renderLoading(viewModel.repository.loading.value)
-            renderRefreshing(viewModel.refreshingIp.value)
-        }
-
-        // 尾部：添加供应商
-        footerAdapter = SingleItemAdapter(
-            inflate = { inflater, parent -> ViewFooterBinding.inflate(inflater, parent, false) },
-        ) { f ->
-            f.btnAddProvider.setOnClickListener {
-                startActivity(Intent(this, PendingProvidersActivity::class.java))
-            }
-        }
-
-        val concat = ConcatAdapter(headerAdapter, adapter, footerAdapter)
+        // 列表里只有供应商卡片；搜索区/摘要已在布局里固定。
         binding.recyclerView.apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
-            adapter = concat
+            adapter = this@MainActivity.adapter
             setHasFixedSize(false)
             itemAnimator = DefaultItemAnimator().apply {
                 // 关闭「内容变化」动画：每次查询后 providerStates 都是新 List，
-                // 保留 change 动画会让整行闪烁 —— 与 ZYNotificationHistory 同样的处理。
+                // 保留 change 动画会让整行闪烁。
                 supportsChangeAnimations = false
             }
+            // 滚动时收起已展开的卡片，避免带着偏移滚出屏幕
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                        SwipeRevealHelper.collapseAll(rv)
+                    }
+                }
+            })
         }
 
-        // 左滑由 SwipeRevealHelper 在卡片内部处理（见 ProviderAdapter.VH.init），
-        // 不再使用 ItemTouchHelper：
-        //   - ConcatAdapter 下 getSwipeDirs 的位置判断不可靠，导致根本滑不动
-        //   - onChildDraw 手改 translationX 会与 ItemTouchHelper 自身偏移叠加，
-        //     造成「点按位置与实际控件错位」
-        // 滚动时收起已展开的卡片，避免带着偏移滚出屏幕。
-        binding.recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    SwipeRevealHelper.collapseAll(rv)
-                }
+        setupHeader(binding.header)
+        binding.btnAddProvider.setOnClickListener {
+            startActivity(Intent(this, PendingProvidersActivity::class.java))
+        }
+    }
+
+    /** 固定区（搜索 + 本机 IP + 摘要）的点击与回填。 */
+    private fun setupHeader(h: ViewHeaderBinding) {
+        h.btnSearch.setOnClickListener { doSearch() }
+        h.inputIp.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                doSearch()
+                true
+            } else {
+                false
             }
-        })
+        }
+        h.btnRefreshIp.setOnClickListener { viewModel.refreshLocalIp(forceQuery = true) }
+        h.tvLocalIp.setOnClickListener {
+            val ip = it.tag as? String ?: return@setOnClickListener
+            h.inputIp.setText(ip)
+            viewModel.search(ip)
+        }
+        renderLocalIp(viewModel.repository.localIp.value)
+        renderSummary(viewModel.repository.aggregate.value)
+        renderLoading(viewModel.repository.loading.value)
+        renderRefreshing(viewModel.refreshingIp.value)
     }
 
     private fun doSearch() {
-        val value = header?.inputIp?.text?.toString()?.trim().orEmpty()
+        val value = header.inputIp.text?.toString()?.trim().orEmpty()
         if (value.isEmpty()) return
-        header?.inputIp?.clearFocus()
+        header.inputIp.clearFocus()
         viewModel.search(value)
     }
 
@@ -231,39 +211,42 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderList(list: List<ProviderOutcome>) {
         adapter.submitList(list)
-        // 不能隐藏 recyclerView 本身：头部（搜索区/摘要）也在里面。
-        // 空状态通过隐藏提示行表达即可。
-        header?.tvHint?.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+        // 列表里只有卡片，所以空/非空直接控制提示行即可
+        header.tvHint.text = if (list.isEmpty()) {
+            getString(R.string.msg_empty_providers)
+        } else {
+            getString(R.string.hint_swipe_remove)
+        }
     }
 
     private fun renderLoading(loading: Boolean) {
-        header?.loadingRow?.visibility = if (loading) View.VISIBLE else View.GONE
-        header?.btnSearch?.isEnabled = !loading
+        header.loadingRow.visibility = if (loading) View.VISIBLE else View.GONE
+        header.btnSearch.isEnabled = !loading
     }
 
     private fun renderRefreshing(refreshing: Boolean) {
-        header?.progressIp?.visibility = if (refreshing) View.VISIBLE else View.GONE
-        header?.btnRefreshIp?.visibility = if (refreshing) View.GONE else View.VISIBLE
+        header.progressIp.visibility = if (refreshing) View.VISIBLE else View.GONE
+        header.btnRefreshIp.visibility = if (refreshing) View.GONE else View.VISIBLE
     }
 
     private fun renderLocalIp(ip: String?) {
         if (ip.isNullOrBlank()) {
-            header?.tvLocalIp?.visibility = View.GONE
+            header.tvLocalIp.visibility = View.GONE
             return
         }
-        header?.tvLocalIp?.visibility = View.VISIBLE
-        header?.tvLocalIp?.text = getString(R.string.label_local_ip, ip)
-        header?.tvLocalIp?.tag = ip
+        header.tvLocalIp.visibility = View.VISIBLE
+        header.tvLocalIp.text = getString(R.string.label_local_ip, ip)
+        header.tvLocalIp.tag = ip
     }
 
     private fun renderSummary(result: AggregatedResult?) {
-        val card = header?.summary?.summaryCard ?: return
+        val card = header.summary.summaryCard
         if (result == null) {
             card.visibility = View.GONE
             return
         }
         card.visibility = View.VISIBLE
-        val s = header?.summary ?: return
+        val s = header.summary
 
         s.tvIp.text = result.ip
         s.tvFlag.text = countryFlagFromCode(result.signals.countryCode)

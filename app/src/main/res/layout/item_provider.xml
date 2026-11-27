@@ -17,7 +17,7 @@
       关键：默认 visibility=invisible + clickable=false。
       否则即使被卡片完全遮住，它仍在接收点击 —— 用户点「成功」胶囊附近
       就会触发删除（实际是点到了下层这个按钮）。
-      只有滑动露出时（SwipeRevealCallback 里）才切为 VISIBLE + clickable。
+      只有滑动露出时（SwipeRevealHelper 里）才切为 VISIBLE + clickable。
     -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnDelete"
@@ -42,7 +42,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="@dimen/space_xxs"
-    android:layout_marginBottom="@dimen/space_xxs">
+    android:layout_marginBottom="@dimen/space_xxs"
+    android:clickable="true"
+    android:focusable="true">
 
     <LinearLayout
         android:layout_width="match_parent"
