@@ -11,6 +11,7 @@ import com.zyvioip.app.provider.ProviderFlag
 import com.zyvioip.app.provider.ProviderStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,46 +29,42 @@ class ProviderParseTest {
         }
     }
 
-    @Test fun getIpIntel_zeroMeansNoProxyEvidence_notPerfectScore() {
+    @Test fun getIpIntel_zeroMeansNotProxy() {
         val provider = GetIpIntelProvider()
-        val clean = provider.parseForTest("""{"status":"success","result":0.0}""", "1.2.3.4")
+        val clean = provider.parseForTest("""{"status":"success","result":0}""", "1.2.3.4")
         assertEquals(ProviderStatus.SUCCESS, clean.status)
-        // 0 表示“没有代理证据”，风险分应为 0；纯净度才是 100。
-        // 用户反馈“给的数字直接是 0”，就是这里：现在界面统一显示风险分，0 就是 0，语义一致。
-        assertEquals(0, clean.riskScore)
-        assertEquals(100, clean.purity)
-        assertTrue(clean.message!!.contains("未发现代理"))
+        // GetIPIntel 只给二元结论，不产出风险分
+        assertNull(clean.riskScore)
+        assertNull(clean.purity)
+        assertFalse(clean.flags.contains(ProviderFlag.PROXY))
+        assertTrue(clean.message!!.contains("未判定为代理"))
+    }
+
+    @Test fun getIpIntel_oneMeansProxyButNoScore() {
+        val provider = GetIpIntelProvider()
+        val dirty = provider.parseForTest("""{"status":"success","result":1}""", "1.2.3.4")
+        assertEquals(ProviderStatus.SUCCESS, dirty.status)
+        // 关键：即使是 1，也不再产出 100 分 ——
+        // 否则一个源就能把整体平均分从 73 拉到 93。
+        assertNull(dirty.riskScore)
+        assertNull(dirty.purity)
+        assertTrue(dirty.flags.contains(ProviderFlag.PROXY))
+        assertTrue(dirty.message!!.contains("判定为代理"))
     }
 
     @Test fun getIpIntel_statusErrorWithPositiveResultIsRejected() {
         val provider = GetIpIntelProvider()
-        // status=error 但 result 非负：异常组合，不能编造分数
+        // status=error 但 result 非负：异常组合，按失败处理
         val outcome = provider.parseForTest("""{"status":"error","result":0.9,"message":"rate limited"}""", "1.2.3.4")
         assertEquals(ProviderStatus.ERROR, outcome.status)
         assertEquals("rate limited", outcome.error)
-        assertEquals(null, outcome.riskScore)
+        assertNull(outcome.riskScore)
     }
 
-    @Test fun getIpIntel_percentageScaleIsHandled() {
-        val provider = GetIpIntelProvider()
-        // 百分制输入：50 表示 50%，应得到 risk=50 而不是 100
-        val outcome = provider.parseForTest("""{"status":"success","result":50}""", "1.2.3.4")
-        assertEquals(50, outcome.riskScore)
-        // 100 表示 100%
-        val full = provider.parseForTest("""{"status":"success","result":100}""", "1.2.3.4")
-        assertEquals(100, full.riskScore)
-        // 0~1 概率制：0.5 -> 50
-        val prob = provider.parseForTest("""{"status":"success","result":0.5}""", "1.2.3.4")
-        assertEquals(50, prob.riskScore)
-    }
-
-    @Test fun getIpIntel_highProbabilityMapsToHighRisk() {
-        val provider = GetIpIntelProvider()
-        val dirty = provider.parseForTest("""{"status":"success","result":0.9}""", "1.2.3.4")
-        assertEquals(90, dirty.riskScore)
-        assertEquals(10, dirty.purity)
-        assertTrue(dirty.flags.contains(ProviderFlag.PROXY))
-        assertTrue("高度疑似代理/VPN" in dirty.message!!)
+    @Test fun getIpIntel_isNotScorable() {
+        // 不参与评分：目录里必须是 scorable = false
+        val spec = com.zyvioip.app.provider.ProviderCatalog.byId("getipintel")!!
+        assertFalse("GetIPIntel 只给二元结论，不应参与平均分", spec.scorable)
     }
 
     @Test fun abuseIpdb_usesUsageTypeForDatacenterFlag() {

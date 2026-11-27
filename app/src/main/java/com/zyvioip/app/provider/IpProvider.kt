@@ -57,11 +57,13 @@ object ProviderCatalog {
             name = "GetIPIntel",
             auth = ProviderAuth.EMAIL,
             requiresEmail = true,
+            // 实测 result 只返回 0 或 1（二元判定），无法反映风险程度。
+            // 混入平均分会把总分拉到 0/100 两个极端，因此不参与评分。
+            scorable = false,
             // 服务强制要求联系邮箱，否则返回 -6。
             // 默认启用会让新装用户一进来就看到一张“需要配置”的红卡，改为默认关闭，
             // 配好邮箱后在“添加供应商”里加进来。
             defaultActive = false,
-            scorable = true,
             signalKind = ProviderSignalKind.PURITY,
             note = "代理概率评分。必须填写可收发的联系邮箱，否则服务拒绝查询。",
             configLabel = "联系邮箱",

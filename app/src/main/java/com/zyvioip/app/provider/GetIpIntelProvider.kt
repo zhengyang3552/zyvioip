@@ -1,7 +1,6 @@
 package com.zyvioip.app.provider
 
 import okhttp3.Request
-import kotlin.math.roundToInt
 
 /** GetIPIntel: probability (0..1) that an address is a proxy/VPN. */
 class GetIpIntelProvider(
@@ -53,38 +52,33 @@ class GetIpIntelProvider(
             }
             return result(ProviderStatus.ERROR, error = textField(map, "message") ?: fallback)
         }
-        // GetIPIntel 的 result 是「该 IP 是代理/VPN 的概率」，范围 0~1（若 >1 则按百分制）。
-        // 关键点：result = 0 表示「没有证据表明是代理」，不是「数据缺失」，也不是风险 0。
-        // 旧实现把它算成 purity=100，用户看到的是“纯净度 100”，很容易误会成评分很高；
-        // 现在统一改成风险分语义：risk = 概率 * 100，同时把话说明白。
-        // 注意：上面已经有一个 probability(Number) 变量，这里换名避免重复声明
-        // GetIPIntel 的 result 官方定义是 0.0000~1.0000 的概率。
-        // 这里必须严格按文档解释：
-        //   * 只有 [0, 1] 区间才视为概率
-        //   * 大于 1 的（例如 2~100）说明服务返回的是百分制或异常值，
-        //     直接按百分制处理，绝不能再用 "<=1.0" 这种宽松判断
-        //     —— 之前 1.0 会同时匹配“概率 1.0”和“百分制 1”，语义含糊。
-        val proxyProbability = when {
-            asDouble in 0.0..1.0 -> asDouble
-            asDouble > 1.0 -> (asDouble / 100.0).coerceIn(0.0, 1.0)
-            else -> 0.0
+        // GetIPIntel 的 result 实测只返回 0 或 1（不是连续概率曲线）：
+        //   0 = 未判定为代理/VPN
+        //   1 = 判定为代理/VPN
+        // 因此它只能用来看「是不是代理」，不能当作 0~100 的风险程度。
+        //
+        // 之前按「概率 × 100」换算成风险分，会得出 0 或 100 两个极端值，
+        // 混进平均分后会把整体风险拉到失真（一个源就能把 73 拉成 93）。
+        //
+        // 现在：不产出 riskScore，只给 PROXY 标记，并明确标注它不参与评分。
+        val isProxy = when {
+            asDouble >= 1.0 -> true
+            else -> false
         }
-        val risk = (proxyProbability * 100.0).roundToInt().coerceIn(0, 100)
-        val flags = if (risk >= 50) setOf(ProviderFlag.PROXY) else emptySet()
-        val verdict = when {
-            risk >= 75 -> "高度疑似代理/VPN"
-            risk >= 50 -> "疑似代理/VPN"
-            risk >= 20 -> "可能有代理特征"
-            else -> "未发现代理/VPN 特征"
-        }
+        val flags = if (isProxy) setOf(ProviderFlag.PROXY) else emptySet()
+
         return result(
             status = ProviderStatus.SUCCESS,
             rawFields = flattenForDisplay(map),
             ip = queriedIp,
-            riskScore = risk,
-            purity = toPurity(risk),
+            purity = null,
+            riskScore = null,
             flags = flags,
-            message = "$verdict · 代理概率 ${"%.1f".format(proxyProbability * 100)}%",
+            message = if (isProxy) {
+                "判定为代理/VPN（GetIPIntel 只给二元结论，不参与风险评分）"
+            } else {
+                "未判定为代理/VPN（GetIPIntel 只给二元结论，不参与风险评分）"
+            },
         )
     }
 }

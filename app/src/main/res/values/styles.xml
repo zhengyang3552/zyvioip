@@ -5,9 +5,9 @@
       在摘要里三个并排显得过大。这里收紧到 24dp 高、10dp 内边距。
     -->
     <style name="Widget.ZyvioIp.Chip" parent="Widget.Material3.Chip.Assist">
-        <item name="chipMinHeight">24dp</item>
-        <item name="chipStartPadding">10dp</item>
-        <item name="chipEndPadding">10dp</item>
+        <item name="chipMinHeight">22dp</item>
+        <item name="chipStartPadding">8dp</item>
+        <item name="chipEndPadding">8dp</item>
         <item name="chipBackgroundColor">?attr/colorSurfaceContainerHigh</item>
         <item name="android:textAppearance">?attr/textAppearanceLabelMedium</item>
         <item name="chipStrokeWidth">0dp</item>

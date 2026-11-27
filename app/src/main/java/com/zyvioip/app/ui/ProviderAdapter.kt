@@ -7,7 +7,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
 import com.zyvioip.app.R
 import com.zyvioip.app.databinding.ItemProviderBinding
 import com.zyvioip.app.provider.ProviderCatalog
@@ -99,7 +98,6 @@ class ProviderAdapter(
             b.tvName.text = spec?.name ?: item.providerId
 
             bindStatus(item.status)
-            bindChips(item)
             b.tvDetail.text = detailText(item, spec?.note.orEmpty(), spec?.configLabel.orEmpty())
 
             b.btnRetry.isEnabled = item.status != ProviderStatus.LOADING
@@ -164,44 +162,6 @@ class ProviderAdapter(
                     android.graphics.Color.green(color),
                     android.graphics.Color.blue(color)))
             }
-        }
-
-        private fun bindChips(item: ProviderOutcome) {
-            b.chipGroup.removeAllViews()
-            // 用 LinkedHashSet 去重：来源「机房」与标记 datacenter 会重复
-            val labels = linkedSetOf<String>()
-            item.origin?.let { labels += it.label }
-            item.flags.forEach { labels += flagLabel(it) }
-
-            item.riskScore?.let { addChip(b.chipGroup, "风险 $it", riskColor(it)) }
-            labels.forEach { addChip(b.chipGroup, it, null) }
-
-            // 没有胶囊时隐藏，否则 ChipGroup 的 marginTop 会撑出空白
-            b.chipGroup.visibility = if (b.chipGroup.childCount > 0) View.VISIBLE else View.GONE
-        }
-
-        private fun addChip(group: ChipGroup, text: String, tint: Int?) {
-            val chip = Chip(
-                group.context,
-                null,
-                com.google.android.material.R.attr.chipStyle,
-            ).apply {
-                this.text = text
-                isCheckable = false
-                isClickable = false
-                setEnsureMinTouchTargetSize(false)
-            }
-            if (tint != null) {
-                // 风险分用语义色背景 + 深色文字，低透明度避免抢视觉焦点
-                chip.chipBackgroundColor = android.content.res.ColorStateList.valueOf(
-                    android.graphics.Color.argb(38, 
-                        android.graphics.Color.red(tint),
-                        android.graphics.Color.green(tint),
-                        android.graphics.Color.blue(tint))
-                )
-                chip.setTextColor(tint)
-            }
-            group.addView(chip)
         }
     }
 

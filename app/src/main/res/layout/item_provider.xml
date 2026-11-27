@@ -40,7 +40,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="@dimen/space_lg">
+        android:padding="@dimen/space_md">
 
         <!-- 标题行：名称 + 状态胶囊 + 重试 + 展开箭头 -->
         <LinearLayout
@@ -93,13 +93,6 @@
                 app:iconTint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/chipGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/space_xs"
-            app:chipSpacingHorizontal="@dimen/space_sm"
-            app:chipSpacingVertical="@dimen/space_xxs" />
 
         <TextView
             android:id="@+id/tvDetail"
