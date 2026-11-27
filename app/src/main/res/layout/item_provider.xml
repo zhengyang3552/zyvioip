@@ -32,8 +32,8 @@
     style="@style/Widget.ZyvioIp.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="@dimen/space_xs"
-    android:layout_marginBottom="@dimen/space_xs"
+    android:layout_marginTop="@dimen/space_xxs"
+    android:layout_marginBottom="@dimen/space_xxs"
     android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
@@ -74,25 +74,50 @@
                 android:textAppearance="?attr/textAppearanceLabelSmall"
                 tools:text="成功" />
 
+            <!-- 视觉 36dp，靠 minWidth/minHeight 与 padding 保住热区 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRetry"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="@dimen/touch_target"
-                android:layout_height="@dimen/touch_target"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetLeft="6dp"
+                android:insetTop="6dp"
+                android:insetRight="6dp"
+                android:insetBottom="6dp"
                 android:contentDescription="@string/action_retry"
                 app:icon="@drawable/ic_refresh"
+                app:iconSize="20dp"
+                app:iconPadding="0dp"
                 app:iconTint="?attr/colorPrimary" />
 
+            <!-- 视觉 36dp，靠 minWidth/minHeight 与 padding 保住热区 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnExpand"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="@dimen/touch_target"
-                android:layout_height="@dimen/touch_target"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:insetLeft="6dp"
+                android:insetTop="6dp"
+                android:insetRight="6dp"
+                android:insetBottom="6dp"
                 android:contentDescription="@string/action_expand"
                 app:icon="@drawable/ic_expand_more"
+                app:iconSize="20dp"
+                app:iconPadding="0dp"
                 app:iconTint="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_xs"
+            app:chipSpacingHorizontal="@dimen/space_sm"
+            app:chipSpacingVertical="@dimen/space_xxs" />
 
         <TextView
             android:id="@+id/tvDetail"

@@ -27,7 +27,7 @@
                 android:id="@+id/tvFlag"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceTitleLarge"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
                 tools:text="🇺🇸" />
 
             <TextView
@@ -46,7 +46,7 @@
                 android:id="@+id/tvRiskScore"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                android:textAppearance="?attr/textAppearanceTitleLarge"
                 android:textStyle="bold"
                 tools:text="73" />
 
