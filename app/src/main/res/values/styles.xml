@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      紧凑胶囊：默认 Chip 高 32dp、左右内边距 16dp，
-      在摘要里三个并排显得过大。这里收紧到 24dp 高、10dp 内边距。
+      紧凑胶囊。
+      默认 Chip（Material3 Assist）高 32dp、左右内边距 16dp，
+      外加 chipMinTouchTargetSize 会再撑大 —— 在摘要里四五个并排非常臃肿。
+      这里压到 20dp 高、8dp 内边距、labelSmall 字号，
+      并关闭最小触摸目标撑高（这些胶囊不可点击，无需 48dp 热区）。
     -->
     <style name="Widget.ZyvioIp.Chip" parent="Widget.Material3.Chip.Assist">
-        <item name="chipMinHeight">22dp</item>
+        <item name="chipMinHeight">20dp</item>
         <item name="chipStartPadding">8dp</item>
         <item name="chipEndPadding">8dp</item>
         <item name="chipBackgroundColor">?attr/colorSurfaceContainerHigh</item>
-        <item name="android:textAppearance">?attr/textAppearanceLabelMedium</item>
+        <item name="android:textAppearance">?attr/textAppearanceLabelSmall</item>
+        <item name="android:textSize">11sp</item>
         <item name="chipStrokeWidth">0dp</item>
     </style>
 </resources>

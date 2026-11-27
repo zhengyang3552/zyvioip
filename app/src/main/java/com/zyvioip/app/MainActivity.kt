@@ -323,6 +323,9 @@ class MainActivity : AppCompatActivity() {
             isCheckable = false
             isClickable = false
             setEnsureMinTouchTargetSize(false)
+            // 显式压缩上下留白，与卡片内的胶囊保持一致
+            val v = (resources.displayMetrics.density * 1).toInt()
+            setPadding(paddingLeft, v, paddingRight, v)
         }
 
         if (emphasized) {

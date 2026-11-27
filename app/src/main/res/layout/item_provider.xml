@@ -11,15 +11,24 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <!-- 背景层：删除按钮，卡片左滑后露出 -->
+    <!--
+      背景层：删除按钮，卡片左滑后露出。
+
+      关键：默认 visibility=invisible + clickable=false。
+      否则即使被卡片完全遮住，它仍在接收点击 —— 用户点「成功」胶囊附近
+      就会触发删除（实际是点到了下层这个按钮）。
+      只有滑动露出时（SwipeRevealCallback 里）才切为 VISIBLE + clickable。
+    -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnDelete"
         style="@style/Widget.Material3.Button.IconButton.Filled"
         android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_gravity="end|center_vertical"
-        android:layout_marginEnd="@dimen/space_sm"
+        android:layout_marginEnd="@dimen/space_xxs"
+        android:clickable="false"
         android:contentDescription="@string/action_remove"
+        android:visibility="invisible"
         app:backgroundTint="@color/status_error"
         app:cornerRadius="28dp"
         app:icon="@drawable/ic_delete"

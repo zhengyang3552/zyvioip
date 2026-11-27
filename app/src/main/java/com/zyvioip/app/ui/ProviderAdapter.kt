@@ -93,8 +93,11 @@ class ProviderAdapter(
         }
 
         fun bind(item: ProviderOutcome) {
-            // 复用视图时复位滑动位移，否则会带着上一张卡的偏移
+            // 复用视图时复位滑动位移与删除按钮状态，否则会带着上一张卡的状态
             b.card.translationX = 0f
+            b.btnDelete.visibility = View.INVISIBLE
+            b.btnDelete.isClickable = false
+            b.btnDelete.isEnabled = false
             val spec = ProviderCatalog.byId(item.providerId)
             b.tvName.text = spec?.name ?: item.providerId
 
@@ -190,6 +193,9 @@ class ProviderAdapter(
                 isCheckable = false
                 isClickable = false
                 setEnsureMinTouchTargetSize(false)
+                // 显式压缩上下留白，避免 Chip 默认垂直内边距把它撑高
+                val v = (resources.displayMetrics.density * 1).toInt()
+                setPadding(paddingLeft, v, paddingRight, v)
             }
             if (tint != null) {
                 chip.chipBackgroundColor = android.content.res.ColorStateList.valueOf(

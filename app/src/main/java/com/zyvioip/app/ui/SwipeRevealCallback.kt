@@ -29,13 +29,25 @@ class SwipeRevealCallback(
 
     override fun getSwipeThreshold(vh: RecyclerView.ViewHolder): Float = 0.5f
 
-    /** header / footer 不是供应商卡片，不响应滑动。 */
-    override fun getSwipeDirs(rv: RecyclerView, vh: RecyclerView.ViewHolder): Int =
-        if (vh.itemView.findViewById<android.view.View>(R.id.card) != null) {
-            super.getSwipeDirs(rv, vh)
+    /**
+     * 只有供应商卡片可滑动。
+     *
+     * 不用 findViewById 判断 —— 在 getSwipeDirs 阶段视图可能尚未完全创建，
+     * 结果不稳定。改用 adapter 位置：ConcatAdapter 的 header 在 0 位、
+     * footer 在最后，中间才是供应商卡片。
+     */
+    override fun getSwipeDirs(rv: RecyclerView, vh: RecyclerView.ViewHolder): Int {
+        val pos = vh.bindingAdapterPosition
+        if (pos == RecyclerView.NO_POSITION) return 0
+        val adapter = rv.adapter ?: return 0
+        val itemCount = adapter.itemCount
+        // 首尾各一个固定项（header / footer），中间是供应商卡片
+        return if (pos in 1 until itemCount - 1) {
+            ItemTouchHelper.END
         } else {
             0
         }
+    }
 
     override fun onChildDraw(
         c: Canvas,
@@ -53,7 +65,19 @@ class SwipeRevealCallback(
             return
         }
         // 只平移卡片层；若调用 super，整个 itemView 会被平移，按钮跟着走就露不出来
-        card.translationX = dX.coerceIn(-revealWidthPx, 0f)
+        val clamped = dX.coerceIn(-revealWidthPx, 0f)
+        card.translationX = clamped
+
+        // 滑开超过一定距离才让删除按钮可点 ——
+        // 按钮默认 invisible/clickable=false，否则卡片盖住它时仍会拦截点击，
+        // 用户点「成功」胶囊附近就会误触删除。
+        val btn = vh.itemView.findViewById<android.view.View>(R.id.btnDelete)
+        if (btn != null) {
+            val revealed = clamped < -revealWidthPx * 0.3f
+            btn.visibility = if (revealed) android.view.View.VISIBLE else android.view.View.INVISIBLE
+            btn.isClickable = revealed
+            btn.isEnabled = revealed
+        }
     }
 
     override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {
@@ -64,5 +88,12 @@ class SwipeRevealCallback(
             .translationX(if (reveal) -revealWidthPx else 0f)
             .setDuration(160)
             .start()
+
+        val btn = vh.itemView.findViewById<android.view.View>(R.id.btnDelete)
+        if (btn != null) {
+            btn.visibility = if (reveal) android.view.View.VISIBLE else android.view.View.INVISIBLE
+            btn.isClickable = reveal
+            btn.isEnabled = reveal
+        }
     }
 }
